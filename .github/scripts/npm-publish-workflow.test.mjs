@@ -14,5 +14,8 @@ test('manual publishing checks out the dispatcher SHA while release events use t
     workflow,
     /ref: \$\{\{ github\.event_name == 'workflow_dispatch' && github\.sha \|\| github\.event\.release\.tag_name \}\}/
   )
-  assert.match(workflow, /FILE_VIEWER_RELEASE_TAG: \$\{\{ github\.event\.release\.tag_name \|\| inputs\.release_tag \}\}/)
+  assert.match(
+    workflow,
+    /FILE_VIEWER_RELEASE_TAG: \$\{\{ github\.event\.release\.tag_name \|\| inputs\.release_tag \}\}/
+  )
 })
