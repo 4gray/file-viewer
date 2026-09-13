@@ -111,7 +111,6 @@ async function verifyAsset(entry) {
     throw new Error(`${name} repository.url must point to ${trustedRepositoryUrl}`)
   }
   if (packageJson.private === true) throw new Error(`${name} is private`)
-  if (version !== manifest.version) throw new Error(`${name} must use release ${manifest.version}`)
   return Object.assign(record, {
     tarball,
     packageJson,

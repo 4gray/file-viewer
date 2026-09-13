@@ -24,16 +24,17 @@ async function fixture(t, scenario = '') {
     ['ui', { core: '3.0.3' }],
     ['core', {}]
   ]) {
+    const version = scenario === 'legacy-version' && name === 'full' ? '0.2.7' : '3.0.3'
     const directory = join(root, name)
     await mkdir(join(directory, 'package'), { recursive: true })
     const pkg = {
       name,
-      version: '3.0.3',
+      version,
       dependencies,
       repository: { type: 'git', url: repository }
     }
     await writeFile(join(directory, 'package/package.json'), JSON.stringify(pkg))
-    const tarball = `${name}-3.0.3.tgz`
+    const tarball = `${name}-${version}.tgz`
     assert.equal(
       (await captureCommand('tar', ['-czf', join(assets, tarball), '-C', directory, 'package']))
         .status,
@@ -42,13 +43,13 @@ async function fixture(t, scenario = '') {
     const bytes = await readFile(join(assets, tarball))
     existing[name] = {
       name,
-      version: '3.0.3',
+      version,
       'dist.integrity': `sha512-${createHash('sha512').update(bytes).digest('base64')}`,
       'dist.tarball': `https://registry.npmjs.org/${name}/-/${tarball}`
     }
     entries.push({
       packageName: name,
-      version: '3.0.3',
+      version,
       tarball,
       sha256: createHash('sha256').update(bytes).digest('hex')
     })
@@ -121,6 +122,13 @@ test('publisher obeys dependency order and resumes without republishing exact by
   const report = JSON.parse(await readFile(join(f.assets, 'npm-publish-report.json'), 'utf8'))
   assert.equal(report.status, 'verified')
   assert(report.packages.every((r) => r.status === 'verified-existing'))
+})
+
+test('publisher accepts a manifest-declared legacy package version', async (t) => {
+  const f = await fixture(t, 'legacy-version')
+  const outcome = await f.run()
+  assert.equal(outcome.status, 0, outcome.stderr)
+  assert.deepEqual(await f.calls(), ['core', 'ui', 'full'])
 })
 
 test('a later invalid tarball blocks all writes, not just its own layer', async (t) => {
