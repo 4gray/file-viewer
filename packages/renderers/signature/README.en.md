@@ -82,6 +82,6 @@ pnpm --filter @file-viewer/renderer-signature verify
 pnpm verify:issue-206-signature
 ```
 
-The release gate pins `wasm-bindgen-cli 0.2.127` and runs `wasm-opt -Oz --all-features`. Browser acceptance covers Chromium, Firefox, WebKit, strict CSP/Trusted Types, hostile DOM payloads, path traversal, compression bombs, zero external requests, and Worker cleanup after unmount.
+The release gate pins `wasm-bindgen-cli 0.2.127` and Binaryen `wasm-opt 132`, running `-Oz` with only the post-MVP features emitted by Rust. It never enables `--all-features`, which can introduce WasmGC encodings. Browser acceptance covers Chromium, Firefox, WebKit, strict CSP/Trusted Types, hostile DOM payloads, path traversal, compression bombs, zero external requests, and Worker cleanup after unmount.
 
 See `THIRD_PARTY_LICENSES.json` for the exact runtime closure, selected license branches, and license texts. `THIRD_PARTY_NOTICES.md` provides the short summary.

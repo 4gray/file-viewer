@@ -6,8 +6,10 @@ import { tmpdir } from 'node:os'
 import { dirname, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { brotliCompressSync, constants as zlibConstants } from 'node:zlib'
+import { pnpmInvocation } from '../../../../.github/scripts/lib/pinned-pnpm.mjs'
 
 const packageDir = resolve(dirname(fileURLToPath(import.meta.url)), '..')
+const pnpm = pnpmInvocation()
 const wasmPath = resolve(packageDir, 'dist/rpgp-wasm/rpgp_wrapper_bg.wasm')
 const gluePath = resolve(packageDir, 'dist/rpgp-wasm/rpgp_wrapper.js')
 const hash = (value) => createHash('sha256').update(value).digest('hex')
@@ -49,10 +51,14 @@ assert.equal(
 
 const temporaryDirectory = await mkdtemp(resolve(tmpdir(), 'file-viewer-signature-pack-'))
 try {
-  const output = execFileSync('pnpm', ['pack', '--pack-destination', temporaryDirectory], {
-    cwd: packageDir,
-    encoding: 'utf8'
-  }).trim()
+  const output = execFileSync(
+    pnpm.command,
+    [...pnpm.args, 'pack', '--pack-destination', temporaryDirectory],
+    {
+      cwd: packageDir,
+      encoding: 'utf8'
+    }
+  ).trim()
   const tarballName = output.split(/\r?\n/u).at(-1)
   assert(tarballName, 'pnpm pack did not report a signature-renderer tarball.')
   const tarballPath = resolve(temporaryDirectory, tarballName)

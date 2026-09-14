@@ -3,9 +3,11 @@ import { createHash } from 'node:crypto'
 import { existsSync, readdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { dirname, join, relative, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { pnpmInvocation } from './lib/pinned-pnpm.mjs'
 
 const scriptDir = dirname(fileURLToPath(import.meta.url))
 const sourceRoot = resolve(scriptDir, '../..')
+const pnpm = pnpmInvocation()
 const packageDir = join(sourceRoot, 'packages/renderers/dicom')
 const ledgerPath = join(packageDir, 'THIRD_PARTY_LICENSES.json')
 const noticesPath = join(packageDir, 'THIRD_PARTY_NOTICES.md')
@@ -172,8 +174,17 @@ function loadPackageJson(packagePath) {
 }
 
 const listResult = spawnSync(
-  'pnpm',
-  ['--filter', '@file-viewer/renderer-dicom', 'list', '--prod', '--depth', 'Infinity', '--json'],
+  pnpm.command,
+  [
+    ...pnpm.args,
+    '--filter',
+    '@file-viewer/renderer-dicom',
+    'list',
+    '--prod',
+    '--depth',
+    'Infinity',
+    '--json'
+  ],
   { cwd: sourceRoot, encoding: 'utf8', env: process.env }
 )
 assert(

@@ -1,6 +1,6 @@
 93ea38d2ec6013bcd176cccef1106780a79c4ed69073d9c2ae69698f4fc71bd0  ./GITHUB-COMMENT.md
 9a0bbcd8a4300841b733fc372258e2fc665fbd8fa79c12686e72877fc1c3bea8  ./LICENSE.txt
-a37d58b3dbe5d935340bee7472e028a97c7ecd110f40439b88ec0a00d9b520e5  ./README.md
+0f2dafa7f24f81a5a1e23a2e7a141014d591e2b1d5e6d39e5a37fa164de67970  ./README.md
 9cad8aa508a8367d12cee61abd7d17ca6ffba21085a6df6908b0bf1f9c38b13f  ./certificates/cms-alice.pem
 d85f70bde73056390e010574b99c445783c0829618cdb30430a1f949eb5a8dde  ./certificates/cms-bob.pem
 8d77d368501b2fc8d0f0fb1815f9749db012f0c13d52368ed4e012c3c1609d0e  ./certificates/test-root-ca.crl.pem
@@ -29,7 +29,7 @@ a6aa74eb885a3766773786579731048426e9b5852225aaaae1e9cc21911c639d  ./reports/open
 009915c3004c537d8424032b516232ee436f03d5b542fccef2236132d81e276a  ./reports/verification.txt
 4edc620467f7ed4c3da4421f1ea0a7e7d51e5ee145e8c33ef83ee0b17521283f  ./scripts/REBUILDING.md
 6d28808a2631f95f224a3107a044dd1e928697d3dffb7b7b09ecbe91f7395223  ./scripts/build_structured_timestamp_fixtures.py
-fc64d0272168cd42d9c653edd9d564ea91bc8046f8ccb4c7860e5f5d7dd739d7  ./scripts/verify_all.sh
+60f03a32459344dd6f73145289413ef2dff8c0230d65d1e5bc68eac86b358ce5  ./scripts/verify_all.sh
 3c0a23fa6ffb4b1642f0eec68eb50414891645caeda64dd22039ffa8d5d1f6ef  ./scripts/verify_tsd.py
 c65857d7cd79f3edbeb074fe7b3244b941f8119438589e18b6e20deeface9cbb  ./timestamps/hello-sha384-no-nonce.tsq
 6f7fdd797901afa0033101a5cac94defe7c7db54006c3a057d71469ded28b673  ./timestamps/hello-sha384-no-nonce.tsr

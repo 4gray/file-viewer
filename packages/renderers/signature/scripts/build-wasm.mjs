@@ -3,6 +3,7 @@ import { execFileSync } from 'node:child_process'
 import { access, mkdir, readFile, rm } from 'node:fs/promises'
 import { dirname, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { resolveWasmOpt } from '../../../../.github/scripts/lib/pinned-pnpm.mjs'
 
 const packageDir = resolve(dirname(fileURLToPath(import.meta.url)), '..')
 const rustDir = resolve(packageDir, 'rust')
@@ -43,8 +44,10 @@ run('wasm-bindgen', [
 ])
 
 const wasmOutput = resolve(outDir, 'rpgp_wrapper_bg.wasm')
-try {
-  execFileSync('wasm-opt', [
+const wasmOpt = process.env.FILE_VIEWER_WASM_OPT || resolveWasmOpt()
+if (wasmOpt) {
+  console.log(`[renderer-signature] Optimizing rPGP WASM with ${wasmOpt}.`)
+  execFileSync(wasmOpt, [
     '-Oz',
     // Only the post-MVP features rustc emits for wasm32-unknown-unknown.
     // --all-features rewrites the module with WasmGC encodings that Node 18
@@ -61,8 +64,7 @@ try {
   ], {
     stdio: 'inherit'
   })
-} catch (error) {
-  if (error?.code !== 'ENOENT') throw error
+} else {
   console.warn('[renderer-signature] wasm-opt not found; keeping the release wasm-bindgen output.')
 }
 
