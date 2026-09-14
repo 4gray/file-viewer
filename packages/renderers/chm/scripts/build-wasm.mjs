@@ -41,8 +41,12 @@ run('wasm-bindgen', [
   '--out-name',
   'chm_wasm',
 ])
+const wasmOpt = process.env.FILE_VIEWER_WASM_OPT || 'wasm-opt'
+const usesPinnedWasmOpt = Boolean(process.env.FILE_VIEWER_WASM_OPT)
+
 try {
-  execFileSync('wasm-opt', [
+  console.log(`[renderer-chm] Optimizing Rust/WASM with ${wasmOpt}.`)
+  execFileSync(wasmOpt, [
     '-Oz',
     // Only the post-MVP features rustc emits for wasm32-unknown-unknown.
     // --all-features rewrites the module with WasmGC encodings that Node 18
@@ -61,6 +65,9 @@ try {
     stdio: 'inherit',
   })
 } catch (error) {
+  if (usesPinnedWasmOpt) {
+    throw new Error(`Configured FILE_VIEWER_WASM_OPT failed: ${wasmOpt}`, { cause: error })
+  }
   if (error?.code === 'ENOENT') {
     console.warn('[renderer-chm] wasm-opt is unavailable; keeping the release wasm-bindgen output.')
   } else {

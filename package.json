@@ -1,6 +1,6 @@
 {
   "name": "@flyfish-group/file-viewer-open-source",
-  "version": "3.1.0",
+  "version": "3.1.1",
   "private": true,
   "type": "module",
   "packageManager": "pnpm@11.0.9",
@@ -40,6 +40,7 @@
     "test:doc-github-34": "pnpm --filter @file-viewer/doc verify:github-34",
     "test:doc-github-87": "pnpm --filter @file-viewer/doc verify:github-87",
     "test:email-github-232": "pnpm --filter @file-viewer/renderer-email verify:github-232",
+    "test:epub-github-292": "pnpm vitest run test/epubjs.spec.ts",
     "test:html-preview-github-256": "pnpm exec vitest run test/html-preview.spec.ts",
     "test:ofd-github-177": "pnpm --filter @file-viewer/renderer-ofd verify:github-177",
     "test:ofd-github-266": "pnpm --filter @file-viewer/renderer-ofd verify:github-266",
@@ -58,7 +59,7 @@
     "test:word-github-266": "pnpm --filter @file-viewer/core build && pnpm --filter @file-viewer/doc build && pnpm --filter @file-viewer/renderer-word build",
     "test:word-revisions-github-255": "pnpm exec vitest run test/word-revisions.spec.ts test/word-native-revisions.spec.ts test/vue3-render-options.spec.ts",
     "test:thumbnail": "pnpm --filter @file-viewer/thumbnail test",
-    "test": "pnpm verify:public-release-facts && pnpm test:i18n && pnpm test:thumbnail && pnpm test:archive-github-101 && pnpm test:archive-github-148 && pnpm test:cad-output-github-245 && pnpm test:doc-github-171 && pnpm test:doc-github-192 && pnpm test:doc-github-236 && pnpm test:doc-github-34 && pnpm test:doc-github-87 && pnpm test:email-github-232 && pnpm test:html-preview-github-256 && pnpm test:ofd-github-177 && pnpm test:ofd-github-266 && pnpm test:ofd-github-94 && pnpm test:ofd-resources-github-57 && pnpm test:pdf-cjk-font-github-242 && pnpm test:pptx-assets-github-140 && pnpm test:pptx-github-176 && pnpm test:pptx-github-268 && pnpm test:requirejs-github-258 && pnpm test:shadow-focus-github-243 && pnpm test:spreadsheet-github-175 && pnpm test:spreadsheet-github-178 && pnpm test:spreadsheet-github-234 && pnpm test:vite-copy-assets-github-257 && pnpm test:word-github-266 && pnpm test:word-revisions-github-255 && pnpm test:ofd-signatures && pnpm test:ifc-entry",
+    "test": "pnpm verify:public-release-facts && pnpm test:i18n && pnpm test:thumbnail && pnpm test:archive-github-101 && pnpm test:archive-github-148 && pnpm test:cad-output-github-245 && pnpm test:doc-github-171 && pnpm test:doc-github-192 && pnpm test:doc-github-236 && pnpm test:doc-github-34 && pnpm test:doc-github-87 && pnpm test:email-github-232 && pnpm test:epub-github-292 && pnpm test:html-preview-github-256 && pnpm test:ofd-github-177 && pnpm test:ofd-github-266 && pnpm test:ofd-github-94 && pnpm test:ofd-resources-github-57 && pnpm test:pdf-cjk-font-github-242 && pnpm test:pptx-assets-github-140 && pnpm test:pptx-github-176 && pnpm test:pptx-github-268 && pnpm test:requirejs-github-258 && pnpm test:shadow-focus-github-243 && pnpm test:spreadsheet-github-175 && pnpm test:spreadsheet-github-178 && pnpm test:spreadsheet-github-234 && pnpm test:vite-copy-assets-github-257 && pnpm test:word-github-266 && pnpm test:word-revisions-github-255 && pnpm test:ofd-signatures && pnpm test:ifc-entry",
     "type-check:components": "pnpm --filter @file-viewer/web type-check && pnpm --filter @file-viewer/react type-check && pnpm --filter @file-viewer/react-legacy type-check && pnpm --filter @file-viewer/vue3 type-check && pnpm --filter @file-viewer/vue2.7 type-check && pnpm --filter @file-viewer/vue2.6 type-check && pnpm --filter @file-viewer/jquery type-check && pnpm --filter @file-viewer/svelte type-check",
     "type-check:tools": "pnpm --filter './packages/tools/**' type-check",
     "docs:dev": "pnpm --filter @flyfish-group/file-viewer-docs dev",
@@ -95,7 +96,7 @@
     "verify:github-governance": "node --test .github/scripts/*.test.mjs && node .github/scripts/verify-community-standards.mjs && prettier --config .github/prettier-governance.json --check '.github/**/*.{md,yml,mjs,json}' CONTRIBUTING.md SUPPORT.md"
   },
   "devDependencies": {
-    "@types/node": "^26.5.0",
+    "@types/node": "^26.5.1",
     "prettier": "3.9.6",
     "playwright": "^1.61.1",
     "typescript": "^6.0.3",

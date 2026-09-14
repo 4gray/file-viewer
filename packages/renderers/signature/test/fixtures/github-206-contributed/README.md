@@ -50,6 +50,11 @@ From the package root:
 ./scripts/verify_all.sh
 ```
 
+The full CAdES fixture check needs an `openssl` executable whose `cms -help`
+lists `-cades`. The script selects a supported Homebrew OpenSSL automatically
+on macOS and honors `FILE_VIEWER_OPENSSL` when a specific executable is needed;
+the system LibreSSL at `/usr/bin/openssl` does not provide that CAdES option.
+
 Representative commands:
 
 ```bash

@@ -79,6 +79,31 @@ async function createLongFlowDocx() {
   return zip.generateAsync({ type: 'nodebuffer' })
 }
 
+async function createNestedNavigationEpub() {
+  const zip = new JSZip()
+  const chapter = (id, title) =>
+    `<html xmlns="http://www.w3.org/1999/xhtml"><body><h1 id="${id}">${title}</h1>${Array.from(
+      { length: 48 },
+      (_, index) => `<p>${title} paragraph ${index + 1}</p>`
+    ).join('')}</body></html>`
+  zip.file('mimetype', 'application/epub+zip', { compression: 'STORE' })
+  zip.file(
+    'META-INF/container.xml',
+    '<?xml version="1.0"?><container version="1.0" xmlns="urn:oasis:names:tc:opendocument:xmlns:container"><rootfiles><rootfile full-path="OEBPS/content.opf" media-type="application/oebps-package+xml"/></rootfiles></container>'
+  )
+  zip.file(
+    'OEBPS/content.opf',
+    '<?xml version="1.0" encoding="UTF-8"?><package xmlns="http://www.idpf.org/2007/opf" version="3.0" unique-identifier="book"><metadata xmlns:dc="http://purl.org/dc/elements/1.1/"><dc:identifier id="book">nested-nav</dc:identifier><dc:title>Nested navigation regression</dc:title><dc:language>en</dc:language></metadata><manifest><item id="nav" href="text/nav.xhtml" media-type="application/xhtml+xml" properties="nav"/><item id="first" href="text/chapter.xhtml" media-type="application/xhtml+xml"/><item id="second" href="text/chapter-two.xhtml" media-type="application/xhtml+xml"/></manifest><spine><itemref idref="first"/><itemref idref="second"/></spine></package>'
+  )
+  zip.file(
+    'OEBPS/text/nav.xhtml',
+    '<?xml version="1.0" encoding="UTF-8"?><html xmlns="http://www.w3.org/1999/xhtml" xmlns:epub="http://www.idpf.org/2007/ops"><body><nav epub:type="toc"><ol><li><a href="chapter.xhtml#first">First chapter</a></li><li><a href="chapter-two.xhtml#second">Second chapter</a></li></ol></nav></body></html>'
+  )
+  zip.file('OEBPS/text/chapter.xhtml', chapter('first', 'Nested navigation chapter one'))
+  zip.file('OEBPS/text/chapter-two.xhtml', chapter('second', 'Nested navigation chapter two'))
+  return zip.generateAsync({ type: 'nodebuffer', compression: 'DEFLATE' })
+}
+
 async function createRevisionDocx() {
   const zip = await JSZip.loadAsync(await createLongFlowDocx())
   zip.file('word/document.xml', `<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:body><w:p><w:r><w:t>Tracked: </w:t></w:r><w:del w:id="1" w:author="Regression" w:date="2026-09-07T00:00:00Z"><w:r><w:delText>OLD_VALUE</w:delText></w:r></w:del><w:ins w:id="2" w:author="Regression" w:date="2026-09-07T00:00:00Z"><w:r><w:t>NEW_VALUE</w:t></w:r></w:ins></w:p><w:p><w:r><w:t>Unchanged: OLD_VALUE</w:t></w:r></w:p><w:sectPr><w:pgSz w:w="11907" w:h="16839"/><w:pgMar w:top="1440" w:right="1440" w:bottom="1440" w:left="1440"/></w:sectPr></w:body></w:document>`)
@@ -453,6 +478,67 @@ try {
     console.log(
       `[closed-issues] issue-250/${width}px: authored breaks and page-relative shape geometry passed`
     )
+  }
+  const nestedNavigationEpub = await createNestedNavigationEpub()
+  const epubConsoleErrors = []
+  const captureEpubConsoleError = (message) => {
+    if (message.type() === 'error') epubConsoleErrors.push(message.text())
+  }
+  page.on('console', captureEpubConsoleError)
+  try {
+    const waitForEpubFrameText = async (text) => {
+      const deadline = Date.now() + timeout
+      while (Date.now() < deadline) {
+        const content = await Promise.all(
+          page
+            .frames()
+            .filter((frame) => frame !== page.mainFrame())
+            .map((frame) =>
+              frame
+                .locator('body')
+                .innerText({ timeout: 500 })
+                .catch(() => '')
+            )
+        )
+        if (content.some((value) => value.includes(text))) return
+        await page.waitForTimeout(100)
+      }
+      throw new Error(`EPUB did not render ${text}`)
+    }
+    const waitForActiveEpubToc = async (href) => {
+      const deadline = Date.now() + timeout
+      while (Date.now() < deadline) {
+        const activeHrefs = await page
+          .locator('.epub-toc-item.active')
+          .evaluateAll((buttons) => buttons.map((button) => button.dataset.href))
+        if (activeHrefs.includes(href)) return
+        await page.waitForTimeout(100)
+      }
+      throw new Error(`EPUB did not activate ${href}`)
+    }
+    await uploadFixture('nested-navigation.epub', nestedNavigationEpub)
+    await page.locator('.epub-viewer').waitFor({ state: 'visible', timeout })
+    await waitForEpubFrameText('Nested navigation chapter one')
+    const tocHrefs = await page
+      .locator('.epub-toc-item')
+      .evaluateAll((buttons) => buttons.map((button) => button.dataset.href))
+    assert.deepEqual(tocHrefs, ['text/chapter.xhtml#first', 'text/chapter-two.xhtml#second'])
+    await waitForActiveEpubToc('text/chapter.xhtml#first')
+    await page.locator('.epub-toc-item').filter({ hasText: 'Second chapter' }).click()
+    await waitForActiveEpubToc('text/chapter-two.xhtml#second')
+    await waitForEpubFrameText('Nested navigation chapter two')
+    assert.deepEqual(epubConsoleErrors, [])
+    evidence.cases.push({
+      name: 'issue-292-nested-epub-navigation',
+      input: 'native-file-upload',
+      tocHrefs,
+      passed: true
+    })
+    console.log(
+      '[closed-issues] issue-292: nested EPUB navigation opens and follows normalized TOC links without browser errors'
+    )
+  } finally {
+    page.off('console', captureEpubConsoleError)
   }
   await openFixture('continuous.docx', await createLongFlowDocx())
   await page.getByText('Flow row 149', { exact: true }).waitFor({ state: 'attached', timeout })

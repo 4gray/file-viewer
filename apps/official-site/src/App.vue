@@ -126,7 +126,7 @@ const githubUrl = 'https://github.com/flyfish-dev/file-viewer'
 const githubApiUrl = 'https://api.github.com/repos/flyfish-dev/file-viewer'
 const githubStarCountFallback = 1900
 const releasesUrl = 'https://github.com/flyfish-dev/file-viewer/releases'
-const currentReleaseVersion = '3.1.0'
+const currentReleaseVersion = '3.1.1'
 const currentReleaseUrl = `${releasesUrl}/tag/v${currentReleaseVersion}`
 const registeredExtensionCount = FORMAT_CATALOG_SUMMARY.registeredExtensionCount
 const stableExtensionCount = FORMAT_CATALOG_SUMMARY.stableExtensionCount
@@ -376,7 +376,7 @@ const copy = {
     supportTitle: '让开源维护持续下去。',
     supportIntro: '如果 File Viewer 帮到了你的项目，可以在需要时选择一种方式支持维护。',
     releaseTitle:
-      'v3.1.0 已发布：89 个 npm 目标、Word 对角线边框修复、PPTX 图表与 Worker 资源回归；Vue 2 和既有 Full 契约保持兼容。',
+      'v3.1.1 已发布：89 个 npm 目标、EPUB 嵌套目录导航修复和 MapLibre Worker 依赖一致性门；Vue 2 和既有 Full 契约保持兼容。',
     footer: '本仓库源码与软件包采用 Apache-2.0；可选外部依赖保留各自许可。由 Flyfish Dev 持续维护。'
   },
   en: {
@@ -429,7 +429,7 @@ const copy = {
     supportIntro:
       'If File Viewer saves your team time, choose a support option when it makes sense.',
     releaseTitle:
-      'v3.1.0 ships 89 npm targets, Word diagonal-border repair, PPTX chart and Worker-asset regressions; Vue 2 and existing Full contracts remain compatible.',
+      'v3.1.1 ships 89 npm targets, a nested EPUB navigation fix, and a MapLibre Worker dependency-consistency gate; Vue 2 and existing Full contracts remain compatible.',
     footer:
       'Repository source and packages use Apache-2.0; optional external dependencies keep their own licenses. Maintained by Flyfish Dev.'
   }

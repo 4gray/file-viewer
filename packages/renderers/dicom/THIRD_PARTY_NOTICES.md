@@ -41,7 +41,7 @@ None of the Apache-2.0 dependencies in this closure publishes a top-level `NOTIC
 
 ### Apache-2.0
 
-- `baseline-browser-mapping@2.11.22` — https://github.com/web-platform-dx/baseline-browser-mapping
+- `baseline-browser-mapping@2.11.23` — https://github.com/web-platform-dx/baseline-browser-mapping
 - `comlink@4.4.2` — https://github.com/GoogleChromeLabs/comlink
 - `dompurify@3.4.15` — https://github.com/cure53/DOMPurify
 
@@ -67,7 +67,7 @@ None of the Apache-2.0 dependencies in this closure publishes a top-level `NOTIC
 - `d3-scale@4.0.2` — https://github.com/d3/d3-scale
 - `d3-time@3.1.0` — https://github.com/d3/d3-time
 - `d3-time-format@4.1.0` — https://github.com/d3/d3-time-format
-- `electron-to-chromium@1.5.413` — https://github.com/Kilian/electron-to-chromium
+- `electron-to-chromium@1.5.427` — https://github.com/Kilian/electron-to-chromium
 - `fs.realpath@1.0.0` — https://github.com/isaacs/fs.realpath
 - `glob@7.2.0` — https://github.com/isaacs/node-glob
 - `inflight@1.0.6` — https://github.com/npm/inflight
@@ -97,7 +97,7 @@ None of the Apache-2.0 dependencies in this closure publishes a top-level `NOTIC
 - `@types/trusted-types@2.0.7` (platform-optional) — https://github.com/DefinitelyTyped/DefinitelyTyped
 - `@types/webxr@0.5.5` — https://github.com/DefinitelyTyped/DefinitelyTyped
 - `adm-zip@0.6.0` — https://github.com/cthackers/adm-zip
-- `autoprefixer@10.5.4` — https://github.com/postcss/autoprefixer
+- `autoprefixer@10.6.0` — https://github.com/postcss/autoprefixer
 - `balanced-match@1.0.0` — https://github.com/juliangruber/balanced-match
 - `brace-expansion@1.1.18` — https://github.com/juliangruber/brace-expansion
 - `browserslist@4.28.7` — https://github.com/browserslist/browserslist
@@ -125,7 +125,7 @@ None of the Apache-2.0 dependencies in this closure publishes a top-level `NOTIC
 - `loglevel@1.9.2` — https://github.com/pimterry/loglevel
 - `nanoid@3.3.18` — https://github.com/ai/nanoid
 - `ndarray@1.0.19` — https://github.com/mikolalysenko/ndarray
-- `node-releases@2.0.53` — https://github.com/chicoxyzzy/node-releases
+- `node-releases@2.0.55` — https://github.com/chicoxyzzy/node-releases
 - `path-is-absolute@1.0.1` — https://github.com/sindresorhus/path-is-absolute
 - `path-parse@1.0.7` — https://github.com/jbgutierrez/path-parse
 - `postcss@8.5.23` — https://github.com/postcss/postcss
@@ -134,7 +134,7 @@ None of the Apache-2.0 dependencies in this closure publishes a top-level `NOTIC
 - `resolve@1.22.12` — https://github.com/browserify/resolve
 - `seedrandom@3.0.5` — https://github.com/davidbau/seedrandom
 - `supports-preserve-symlinks-flag@1.0.0` — https://github.com/inspect-js/node-supports-preserve-symlinks-flag
-- `update-browserslist-db@1.3.1` — https://github.com/browserslist/update-db
+- `update-browserslist-db@1.3.3` — https://github.com/browserslist/update-db
 - `utif@3.1.0` — https://github.com/photopea/UTIF.js
 - `uuid@11.1.1` — https://github.com/uuidjs/uuid
 - `webworker-promise@0.5.0` — https://github.com/kwolfy/webworker-promise

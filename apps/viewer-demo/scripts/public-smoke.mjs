@@ -207,6 +207,54 @@ try {
     throw new Error('Native toolbar search did not clear document highlights.')
   }
 
+  await page.goto(`${baseUrl}/?lang=en&url=/example/putty-0.85.chm&smoke=public-ci-chm`, {
+    waitUntil: 'domcontentloaded',
+    timeout
+  })
+  const chmRoot = page.locator('.chm-viewer[data-chm-ready="true"]')
+  await chmRoot.waitFor({ state: 'visible', timeout })
+  const chmRootHandle = await chmRoot.elementHandle()
+  if (!chmRootHandle) {
+    throw new Error('CHM renderer root disappeared before browser verification.')
+  }
+  let chmRuntime
+  try {
+    // The renderer lives in the component's open shadow root, so wait from the real root.
+    await page.waitForFunction(
+      root => {
+        const frame = root.querySelector('.chm-topic-frame')
+        return (
+          frame instanceof HTMLIFrameElement &&
+          (frame.contentDocument?.body?.textContent || '').length > 80
+        )
+      },
+      chmRootHandle,
+      { timeout }
+    )
+    chmRuntime = await chmRoot.evaluate(root => {
+      const frame = root.querySelector('.chm-topic-frame')
+      const topicText =
+        frame instanceof HTMLIFrameElement
+          ? (frame.contentDocument?.body?.textContent || '').replace(/\s+/g, ' ').trim()
+          : ''
+      return {
+        errorVisible: root.querySelector('.chm-error:not([hidden])') !== null,
+        ready: root.getAttribute('data-chm-ready'),
+        title: root.querySelector('.chm-heading h2')?.textContent?.trim(),
+        topicText
+      }
+    })
+  } finally {
+    await chmRootHandle.dispose()
+  }
+  if (
+    chmRuntime.ready !== 'true' ||
+    chmRuntime.errorVisible ||
+    !/putty/i.test(`${chmRuntime.title || ''}\n${chmRuntime.topicText}`)
+  ) {
+    throw new Error(`CHM Worker/WASM browser runtime failed: ${JSON.stringify(chmRuntime)}`)
+  }
+
   await page.goto(`${baseUrl}/?lang=en&smoke=public-ci-locale-menu`, {
     waitUntil: 'domcontentloaded',
     timeout
@@ -334,7 +382,7 @@ try {
     throw new Error(`Browser console errors:\n${actionableErrors.join('\n')}`)
   }
 
-  console.log('[public-browser-smoke] Main and compare four-language globe menus, English Markdown, native toolbar search, Japanese UI, metadata, desktop picker and 390px mobile layout verified.')
+  console.log('[public-browser-smoke] Main and compare four-language globe menus, English Markdown, CHM Worker/WASM, native toolbar search, Japanese UI, metadata, desktop picker and 390px mobile layout verified.')
 } finally {
   await browser?.close()
   await new Promise(resolveClose => server.close(resolveClose))

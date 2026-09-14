@@ -1,6 +1,6 @@
 {
   "name": "@flyfish-group/file-viewer-web",
-  "version": "3.1.0",
+  "version": "3.1.1",
   "private": false,
   "type": "module",
   "description": "Private-deploy pure web component for File Viewer",
@@ -67,15 +67,15 @@
     "README.en.md"
   ],
   "scripts": {
-    "build": "tsc -b tsconfig.json && node ../../../scripts/build-web-iife.mjs packages/compat/web",
+    "build": "tsc -b tsconfig.json && node ../../../.github/scripts/build-web-iife.mjs packages/compat/web",
     "postinstall": "node ./scripts/copy-assets.mjs --postinstall",
     "type-check": "tsc -b tsconfig.json"
   },
   "dependencies": {
-    "@file-viewer/web": "workspace:3.1.0"
+    "@file-viewer/web": "workspace:3.1.1"
   },
   "devDependencies": {
-    "@types/node": "^26.5.0",
+    "@types/node": "^26.5.1",
     "typescript": "^6.0.3",
     "vite": "^8.2.2"
   },

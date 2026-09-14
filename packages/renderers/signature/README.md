@@ -84,6 +84,6 @@ pnpm --filter @file-viewer/renderer-signature verify
 pnpm verify:issue-206-signature
 ```
 
-发布门禁固定使用 `wasm-bindgen-cli 0.2.127` 和 `wasm-opt -Oz --all-features`。浏览器回归覆盖 Chromium、Firefox、WebKit、严格 CSP/Trusted Types、恶意 DOM 载荷、路径穿越、压缩炸弹、外网请求禁止和 Worker 卸载归零。
+发布门禁固定使用 `wasm-bindgen-cli 0.2.127` 和 Binaryen `wasm-opt 132`，以 `-Oz` 加 Rust 输出所需的后 MVP 特性运行，绝不启用会引入 WasmGC 编码的 `--all-features`。浏览器回归覆盖 Chromium、Firefox、WebKit、严格 CSP/Trusted Types、恶意 DOM 载荷、路径穿越、压缩炸弹、外网请求禁止和 Worker 卸载归零。
 
 完整运行时依赖、选择的许可证分支和对应许可证正文见 `THIRD_PARTY_LICENSES.json`；摘要见 `THIRD_PARTY_NOTICES.md`。

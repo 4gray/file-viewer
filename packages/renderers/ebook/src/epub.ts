@@ -29,6 +29,17 @@ type EpubNavigation = {
   toc?: unknown;
 };
 
+type EpubPackaging = {
+  navPath?: unknown;
+  ncxPath?: unknown;
+};
+
+type EpubSpine = {
+  items?: Array<{
+    href?: unknown;
+  }>;
+};
+
 type EpubRendition = {
   destroy(): void;
   display(href?: string): Promise<unknown>;
@@ -51,8 +62,11 @@ type EpubBook = {
   locations: {
     generate(chars: number): Promise<unknown>;
   };
+  package?: EpubPackaging;
+  packaging?: EpubPackaging;
   ready: Promise<unknown>;
   renderTo(target: HTMLElement, options: Record<string, unknown>): EpubRendition;
+  spine?: EpubSpine;
 };
 
 type EpubFactory = (buffer: ArrayBuffer, options?: {
@@ -194,6 +208,93 @@ const pickInitialHref = (items: TocItem[]) => {
   return readable?.href || items[0]?.href;
 };
 
+const splitEpubHref = (href: string) => {
+  const separatorIndex = href.search(/[?#]/);
+  if (separatorIndex === -1) {
+    return { pathname: href, suffix: '' };
+  }
+  return {
+    pathname: href.slice(0, separatorIndex),
+    suffix: href.slice(separatorIndex),
+  };
+};
+
+const normalizeEpubArchivePath = (pathname: string) => {
+  const segments: string[] = [];
+  pathname.replace(/\\/g, '/').split('/').forEach(segment => {
+    if (!segment || segment === '.') {
+      return;
+    }
+    if (segment === '..') {
+      segments.pop();
+      return;
+    }
+    segments.push(segment);
+  });
+  return segments.join('/');
+};
+
+const isExternalEpubHref = (href: string) => {
+  return href.startsWith('/') || href.startsWith('//') || /^[a-z][a-z\\d+.-]*:/i.test(href);
+};
+
+/**
+ * epub.js exposes nav/NCX links relative to the navigation document, while its
+ * spine lookup is relative to the OPF. Only rewrite a link when the resolved
+ * archive path is an actual spine entry, preserving already-normalized links.
+ */
+export const resolveEpubNavigationHref = (
+  href: string,
+  navigationPath: string | undefined,
+  spineHrefs: readonly string[]
+) => {
+  const source = href.trim();
+  if (!source || isExternalEpubHref(source)) {
+    return source;
+  }
+
+  const { pathname, suffix } = splitEpubHref(source);
+  const knownSpinePaths = new Set(
+    spineHrefs
+      .map(value => normalizeEpubArchivePath(splitEpubHref(value).pathname))
+      .filter(Boolean)
+  );
+  const rawPath = normalizeEpubArchivePath(pathname);
+  if (rawPath && knownSpinePaths.has(rawPath)) {
+    return `${rawPath}${suffix}`;
+  }
+
+  const navigation = navigationPath?.trim();
+  if (!navigation) {
+    return source;
+  }
+  const navigationPathname = normalizeEpubArchivePath(splitEpubHref(navigation).pathname);
+  const navigationDirectory = navigationPathname.split('/').slice(0, -1).join('/');
+  const resolvedPath = normalizeEpubArchivePath(`${navigationDirectory}/${pathname}`);
+  if (resolvedPath && knownSpinePaths.has(resolvedPath)) {
+    return `${resolvedPath}${suffix}`;
+  }
+
+  return source;
+};
+
+const getEpubNavigationPath = (book: EpubBook) => {
+  const packageData = book.packaging || book.package;
+  return [packageData?.navPath, packageData?.ncxPath].find(
+    (value): value is string => typeof value === 'string' && Boolean(value.trim())
+  );
+};
+
+const normalizeEpubTocHrefs = (items: TocItem[], book: EpubBook) => {
+  const navigationPath = getEpubNavigationPath(book);
+  const spineHrefs = book.spine?.items
+    ?.flatMap(item => typeof item.href === 'string' ? [item.href] : []) || [];
+  return items.map(item => ({
+    ...item,
+    href: resolveEpubNavigationHref(item.href, navigationPath, spineHrefs),
+  }));
+};
+
 export default async function renderEpub(
   buffer: ArrayBuffer,
   target: HTMLDivElement,
@@ -289,8 +390,28 @@ export default async function renderEpub(
     state.classList.toggle('error', status === 'error');
     tocCount.textContent = t('ebook.itemCount', { count: tocItems.length });
     Array.from(tocList.querySelectorAll<HTMLButtonElement>('.epub-toc-item')).forEach(button => {
-      button.classList.toggle('active', button.dataset.href === currentHref);
+      const itemPath = button.dataset.href?.split('#')[0];
+      const currentPath = currentHref.split('#')[0];
+      button.classList.toggle('active', Boolean(itemPath) && itemPath === currentPath);
     });
+  };
+
+  const showRenditionError = (error: unknown) => {
+    if (disposed) {
+      return;
+    }
+    console.error(error);
+    status = 'error';
+    state.textContent = error instanceof Error ? error.message : String(error);
+    syncUi();
+  };
+
+  const runRenditionAction = (action: () => Promise<unknown>) => {
+    try {
+      void action().catch(showRenditionError);
+    } catch (error) {
+      showRenditionError(error);
+    }
   };
 
   const renderToc = () => {
@@ -301,7 +422,7 @@ export default async function renderEpub(
       button.dataset.href = item.href;
       button.style.paddingLeft = `${12 + item.depth * 14}px`;
       listen(button, 'click', () => {
-        void rendition?.display(item.href);
+        runRenditionAction(() => rendition?.display(item.href) || Promise.resolve());
         tocOpen = false;
         syncUi();
       });
@@ -400,9 +521,12 @@ export default async function renderEpub(
       author = normalizeLabel(metadata?.creator, '');
 
       const navigation = await book.loaded.navigation.catch(() => undefined);
-      tocItems = flattenToc(
-        (navigation as { toc?: unknown } | undefined)?.toc,
-        index => t('epub.chapterFallback', { index })
+      tocItems = normalizeEpubTocHrefs(
+        flattenToc(
+          (navigation as { toc?: unknown } | undefined)?.toc,
+          index => t('epub.chapterFallback', { index })
+        ),
+        book
       );
       renderToc();
 
@@ -417,10 +541,7 @@ export default async function renderEpub(
       syncUi();
       void book.locations.generate(1200).catch(() => undefined);
     } catch (error) {
-      console.error(error);
-      status = 'error';
-      state.textContent = error instanceof Error ? error.message : String(error);
-      syncUi();
+      showRenditionError(error);
     }
   };
 
@@ -429,10 +550,10 @@ export default async function renderEpub(
     syncUi();
   });
   listen(prevButton, 'click', () => {
-    void rendition?.prev();
+    runRenditionAction(() => rendition?.prev() || Promise.resolve());
   });
   listen(nextButton, 'click', () => {
-    void rendition?.next();
+    runRenditionAction(() => rendition?.next() || Promise.resolve());
   });
 
   syncUi();

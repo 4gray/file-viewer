@@ -1,23 +1,38 @@
-import { execFileSync } from 'node:child_process';
-import { dirname, resolve } from 'node:path';
-import { fileURLToPath } from 'node:url';
-import { createMDX } from 'fumadocs-mdx/next';
+import { execFileSync } from "node:child_process";
+import { dirname, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
+import { createMDX } from "fumadocs-mdx/next";
 
 const withMDX = createMDX({ agentRules: false });
-const repositoryRoot = resolve(dirname(fileURLToPath(import.meta.url)), '../..');
+const repositoryRoot = resolve(
+  dirname(fileURLToPath(import.meta.url)),
+  "../..",
+);
+
+function normalizeDeploymentId(value) {
+  // Next accepts only this portable subset, while local package versions contain dots.
+  const normalized = String(value || "")
+    .trim()
+    .replace(/[^A-Za-z0-9_-]+/g, "-")
+    .replace(/^-+|-+$/g, "");
+  return normalized || "local";
+}
 
 function resolveDeploymentId() {
-  const configuredId = process.env.DOCS_DEPLOYMENT_ID || process.env.CF_PAGES_COMMIT_SHA;
-  if (configuredId) return configuredId.trim();
+  const configuredId =
+    process.env.DOCS_DEPLOYMENT_ID || process.env.CF_PAGES_COMMIT_SHA;
+  if (configuredId) return normalizeDeploymentId(configuredId);
 
   try {
-    return execFileSync('git', ['rev-parse', '--short=12', 'HEAD'], {
-      cwd: repositoryRoot,
-      encoding: 'utf8',
-      stdio: ['ignore', 'pipe', 'ignore'],
-    }).trim();
+    return normalizeDeploymentId(
+      execFileSync("git", ["rev-parse", "--short=12", "HEAD"], {
+        cwd: repositoryRoot,
+        encoding: "utf8",
+        stdio: ["ignore", "pipe", "ignore"],
+      }),
+    );
   } catch {
-    return process.env.npm_package_version || 'local';
+    return normalizeDeploymentId(process.env.npm_package_version || "local");
   }
 }
 
@@ -25,7 +40,7 @@ function resolveDeploymentId() {
 const config = {
   deploymentId: resolveDeploymentId(),
   supportsImmutableAssets: false,
-  output: 'export',
+  output: "export",
   experimental: {
     globalNotFound: true,
   },
