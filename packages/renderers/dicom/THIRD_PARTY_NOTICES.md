@@ -96,7 +96,7 @@ None of the Apache-2.0 dependencies in this closure publishes a top-level `NOTIC
 - `@rollup/rollup-linux-x64-gnu@4.13.0` (platform-optional) — https://github.com/rollup/rollup
 - `@types/trusted-types@2.0.7` (platform-optional) — https://github.com/DefinitelyTyped/DefinitelyTyped
 - `@types/webxr@0.5.5` — https://github.com/DefinitelyTyped/DefinitelyTyped
-- `adm-zip@0.6.0` — https://github.com/cthackers/adm-zip
+- `adm-zip@0.6.1` — https://github.com/cthackers/adm-zip
 - `autoprefixer@10.6.1` — https://github.com/postcss/autoprefixer
 - `balanced-match@1.0.0` — https://github.com/juliangruber/balanced-match
 - `brace-expansion@1.1.18` — https://github.com/juliangruber/brace-expansion
