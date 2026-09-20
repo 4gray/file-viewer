@@ -113,9 +113,11 @@ jobs:
         run: pnpm test
 
       - name: Verify the installed DOCX diagonal-border repair
+        if: steps.impact.outputs.runtime != 'false'
         run: pnpm verify:docx-upstream
 
       - name: Verify optional IFC entry ownership and installed CLI execution
+        if: steps.impact.outputs.runtime != 'false'
         run: pnpm --filter @file-viewer/renderer-3d verify:ifc
 
       - name: Verify bounded metadata parsing and Illustrator namespace hints
@@ -135,15 +137,19 @@ jobs:
         run: node apps/component-demo/scripts/verify-vue3-toolbar.mjs
 
       - name: Verify browser Avro decoding without Node globals
+        if: steps.impact.outputs.runtime != 'false'
         run: pnpm verify:data-avro-browser
 
       - name: Verify the optional binary inspector in Chromium
+        if: steps.impact.outputs.runtime != 'false'
         run: pnpm verify:binary-inspector
 
       - name: Verify the shipped Avro browser bundle and Node shim isolation
+        if: steps.impact.outputs.runtime != 'false'
         run: pnpm --filter @file-viewer/renderer-data verify:avro-browser
 
       - name: Verify official IFC4 and IFC4.3 rendering, picking and Worker cleanup
+        if: steps.impact.outputs.runtime != 'false'
         run: |
           node packages/renderers/3d/scripts/download-ifc-fixtures.mjs /tmp/ifc-samples
           pnpm --filter @file-viewer/renderer-3d verify:ifc-browser /tmp/ifc-samples
