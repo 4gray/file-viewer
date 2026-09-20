@@ -1149,6 +1149,8 @@
 .viewport {
   --file-viewer-content-start-inset:
     calc(var(--demo-file-capsule-collapsed-bottom) + var(--demo-document-start-gap));
+  /* Renderers with pinned controls or attribution can reserve the floating dock's area. */
+  --file-viewer-content-end-inset: 72px;
   --file-viewer-scrollbar-width: thin;
   --file-viewer-scrollbar-colors: var(--demo-scrollbar-thumb) transparent;
   --file-viewer-scrollbar-size: 8px;
@@ -1184,6 +1186,7 @@
 
 .standalone .viewport {
   --file-viewer-content-start-inset: 0px;
+  --file-viewer-content-end-inset: 0px;
   inset: 0;
   padding: 0;
 }
@@ -2179,6 +2182,7 @@
   .viewport {
     --file-viewer-content-start-inset:
       calc(max(10px, env(safe-area-inset-top)) + 52px);
+    --file-viewer-content-end-inset: calc(84px + env(safe-area-inset-bottom));
     inset: 0;
     padding: 0;
   }

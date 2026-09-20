@@ -179,6 +179,36 @@ Worker request returns text/html from the SPA fallback.
 The copied Worker should return JavaScript at its configured URL.
 `
 
+test('accepts an actual public fixture when the reporter rephrases the sharing method (#304)', () => {
+  const body = `
+### Sample sharing method
+Public reproduction file linked below, plus a complete small synthetic patch inline.
+### Sample or reproduction artifact
+https://github.com/flyfish-dev/file-viewer/blob/v3.1.1/apps/viewer-demo/public/example/change.patch
+`
+  assert.equal(validateIssueReport({ title: '[bug]: patch layout', body }).ok, true)
+  assert.equal(
+    validateIssueReport({
+      title: '[bug]: patch layout',
+      body: body.replace(
+        'https://github.com/flyfish-dev/file-viewer/blob/v3.1.1/apps/viewer-demo/public/example/change.patch',
+        'https://github.com/user-attachments/assets/screenshot-only'
+      )
+    }).ok,
+    false
+  )
+  assert.equal(
+    validateIssueReport({
+      title: '[bug]: patch layout',
+      body: body.replace(
+        'Public reproduction file linked below, plus a complete small synthetic patch inline.',
+        'Private sample sent to admin@flyfish.dev'
+      )
+    }).ok,
+    false
+  )
+})
+
 test('accepts complete inline config reproduction without demanding a document', () => {
   for (const body of [
     inlineIntegrationReport,

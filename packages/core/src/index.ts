@@ -8,6 +8,14 @@ import type {
   FileViewerRenderedInstance,
 } from './contracts/types';
 
+export type {
+  FileViewerXmlProfile,
+  FileViewerXmlManifest,
+  FileViewerXmlDiagnosticCode,
+  FileViewerXmlDiagnostic,
+  FileViewerXmlOptions,
+} from './contracts/xml';
+
 export {
   DEFAULT_FILE_VIEWER_ARCHIVE_WORKER_PATH,
   DEFAULT_FILE_VIEWER_ARCHIVE_WASM_PATH,

@@ -3,6 +3,7 @@ import {
   type FileRenderContext,
   type FileViewerRenderedInstance,
 } from '@file-viewer/core';
+import { bindEpubViewportMedia, type EpubMediaRendition } from './epub-viewport-media.js';
 
 type EpubLocation = {
   atEnd?: boolean;
@@ -40,7 +41,7 @@ type EpubSpine = {
   }>;
 };
 
-type EpubRendition = {
+type EpubRendition = EpubMediaRendition & {
   destroy(): void;
   display(href?: string): Promise<unknown>;
   next(): Promise<unknown>;
@@ -127,7 +128,8 @@ const epubStyle = `
 .epub-toc-item:hover,.epub-toc-item.active{background:rgba(37,99,235,.08);color:#1d4ed8}
 .epub-stage-wrap{position:relative;min-width:0;min-height:0;padding:18px;overflow:hidden}
 .epub-stage{width:100%;height:100%;overflow-x:hidden;overflow-y:auto;border-radius:8px;background:#fff;box-shadow:0 18px 45px rgba(15,23,42,.12),inset 0 0 0 1px rgba(15,23,42,.06)}
-.epub-stage .epub-container{width:100%!important;max-width:100%;overflow-x:hidden!important;overflow-y:auto!important}
+/* epub.js already compensates scroll position when it prepends or resizes chapters. */
+.epub-stage .epub-container{width:100%!important;max-width:100%;overflow-x:hidden!important;overflow-y:auto!important;overflow-anchor:none}
 .epub-stage iframe{max-width:100%}
 .epub-state{position:absolute;inset:18px;display:flex;align-items:center;justify-content:center;border-radius:8px;background:rgba(255,255,255,.92);color:#64748b;font-size:14px}
 .epub-state[hidden]{display:none!important}
@@ -497,6 +499,7 @@ export default async function renderEpub(
         spread: 'none',
         width: '100%',
       });
+      cleanups.push(bindEpubViewportMedia(rendition, stage));
 
       rendition.themes.default({
         body: {
@@ -590,6 +593,7 @@ export default async function renderEpub(
       context?.registerThumbnailAdapter?.(null);
       timers.forEach(timer => window.clearTimeout(timer));
       timers.clear();
+      cleanups.splice(0).forEach(cleanup => cleanup());
       if (rendition) {
         rendition.off('relocated', updateLocation);
         rendition.destroy();
@@ -597,7 +601,6 @@ export default async function renderEpub(
       }
       book?.destroy();
       book = undefined;
-      cleanups.splice(0).forEach(cleanup => cleanup());
       target.replaceChildren();
     },
   };

@@ -2,10 +2,10 @@
 
 # 自动生成的格式目录
 
-- 已注册扩展名：**273**
+- 已注册扩展名：**274**
 - 稳定扩展名：**224**
-- 实验扩展名：**49**
-- 预览链路：**46**
+- 实验扩展名：**50**
+- 预览链路：**47**
 
 | Renderer ID | 名称 | 扩展名 | 能力等级 | 状态 | 容器 | 已知限制 |
 | --- | --- | --- | --- | --- | --- | --- |
@@ -32,6 +32,7 @@
 | `model` | 3D Model | `.glb`, `.gltf`, `.obj`, `.stl`, `.ply`, `.fbx`, `.dae`, `.3ds`, `.3mf`, `.amf`, `.usd`, `.usda`, `.usdc`, `.usdz`, `.kmz`, `.step`, `.stp`, `.iges`, `.igs`, `.ifc`, `.3dm`, `.brep`, `.pcd`, `.wrl`, `.vrml`, `.xyz`, `.vtk`, `.vtp` | structured | stable | Mesh<br>CAD exchange<br>scene | - |
 | `geo` | Geospatial | `.geojson`, `.kml`, `.gpx`, `.shp` | structured | stable | GeoJSON<br>KML<br>GPX<br>Shapefile | - |
 | `drawing` | Drawing | `.excalidraw`, `.drawio`, `.dio`, `.mermaid`, `.mmd`, `.plantuml`, `.puml` | structured | stable | Draw.io<br>Excalidraw<br>Mermaid<br>PlantUML | - |
+| `bpmn` | BPMN 2.0 | `.bpmn` | structured | experimental | BPMN 2.0 XML with BPMN DI | Explicit opt-in with bpmn-js<br>Diagram preview requires BPMN DI layout; source remains available without it<br>Read-only preview; process scripts are never executed<br>The bpmn.io watermark is retained under the upstream license |
 | `mindmap` | Mind Map | `.xmind` | structured | stable | XMind | - |
 | `epub` | EPUB | `.epub` | high-fidelity | stable | EPUB 2<br>EPUB 3 | - |
 | `ebook-fb2` | FictionBook | `.fb2` | structured | stable | FictionBook 2 XML | External network resources are not loaded |

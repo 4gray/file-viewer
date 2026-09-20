@@ -138,6 +138,7 @@ const explicitFileIconMeta = {
   vtp: { icon: 'VTP', family: 'model' },
   excalidraw: { icon: 'EX', family: 'drawing' },
   drawio: { icon: 'DIO', family: 'drawing' },
+  bpmn: { icon: 'BPMN', family: 'drawing' },
   dio: { icon: 'DIO', family: 'drawing' },
   epub: { icon: 'EPUB', family: 'ebook' },
   fb2: { icon: 'FB2', family: 'ebook' },

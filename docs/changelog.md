@@ -6,6 +6,15 @@
   The notable user-facing changes shipped from the current File Viewer mainline. GitHub Releases remains the source for downloadable artifacts and immutable release notes.
 </p>
 
+## v3.1.2 - EPUB and Patch fixes, opt-in BPMN and XML views
+
+- Fixed #300: EPUB orientation follows the stable reader viewport instead of transient toolbar measurements, preventing repeated layout changes. Verified with the reporter's file and browser regression.
+- Fixed #304: side-by-side Patch previews keep matched rows aligned and compact, with a fixture that preserves valid patch syntax.
+- Added opt-in BPMN diagrams (#297) and XML XSD validation and XSLT document views (#305). Ordinary XML stays on the text path; existing Full packages do not acquire the optional engines. The Demo includes working samples.
+- Carried forward ZIP security fixes, IDML runtime assets, and dependency updates while keeping Vue 2.6/2.7 and existing Full behavior available.
+
+This release contains 89 npm targets: 88 mainline packages at `3.1.2` and `msdoc-viewer` at `0.2.9`. DOCX remains at `0.3.32` and styled-exceljs at `0.21.6`. Issues #227, #248, and #269 still lack their reporter files and are not claimed as verified fixes.
+
 ## v3.0.3 - Word revisions, browser integration, and mobile PDF fixes
 
 - MapLibre 6.4.1 fixes the attribution HTML sanitizer bypass. Its worker stays bundled locally and survives map recreation. Update js-yaml, sharp and Vitest security versions; replace the unused Browserify toolchain with the specific build shims it supplied.

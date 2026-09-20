@@ -44,7 +44,7 @@ const options = {
 - 安装 text-tools capability 后，`patch` 使用 `diff2html` 渲染左右比对视图，`bundle` / `bdl` 才启用 Git bundle 结构检查。
 - 安装 Mermaid capability 后，Markdown 内嵌 Mermaid 图才会渲染；未安装时保留源码并显示精确 CLI 启用命令。
 - HTML / HTM 默认显示静态页面，提供页面与源码切换；`options.text.htmlView: 'source'` 可默认查看原始源码。页面保留内联 CSS 和内嵌图片，通过净化、CSP 和独立沙箱阻止脚本、表单、外链跳转和外部资源请求，不用于运行完整网站。
-- XML / Vue 等仍按源码转义展示。HTML 源码视图继续支持高亮、格式化和大文本虚拟化。
+- XML / Vue 等默认按源码转义展示。XML 可显式启用下方的 XSD/XSLT profiles；HTML 源码视图继续支持高亮、格式化和大文本虚拟化。
 - Markdown 使用 `marked` 输出只读阅读面，并保留明暗主题、表格滚动和统一缩放 provider。
 - Markdown 不再因为通用大文本阈值自动退化成源码；如业务必须限制超大 Markdown，可单独设置 `options.text.markdownVirtualizeAboveBytes`。
 - 不绑定任何在线服务或公共 CDN，适合内网日志、配置、代码片段、README 和知识库附件预览。
@@ -52,3 +52,77 @@ const options = {
 ## 迁移说明
 
 standard/full 默认包含基础代码、文本和 Markdown，不安装 `diff2html`、`pako` 或 Mermaid。打开可选格式时会提示运行 `npx file-viewer-cli add text-tools --write` 或 `add mermaid-markdown --write`；`preset-all` 仅用于显式全量/调试。
+
+## 可选 XML Profiles
+
+XML profiles 使用真实的 libxml2 XML Schema 1.0 和 libxslt XSLT 1.0 WASM 引擎。
+普通 text/standard/full 不安装这两个可选引擎，也不会替换浏览器的 `XSLTProcessor`。
+需要此功能时，安装固定版本并复制资源：
+
+```sh
+pnpm add xmllint-wasm@5.3.0 xslt-polyfill@1.0.29
+pnpm exec file-viewer-xml-assets public/file-viewer/xml
+```
+
+复制命令不联网、不安装依赖。它会保留目标目录的其他文件，并写入两个引擎的
+JS/WASM、`licenses/` 和带 SHA-256 的 `manifest.json`。部署时一并保留许可证。
+
+先注册实现，再把 `xml` 配置传给 Vanilla/Web Component 或其他标准组件：
+
+```ts
+import { enableFileViewerXmlProfiles } from '@file-viewer/renderer-text/xml-profiles'
+
+const disableXmlProfiles = enableFileViewerXmlProfiles()
+const options = {
+  xml: {
+    profilesUrl: '/xml-profiles/profiles.json',
+    runtime: {
+      xsdWorkerUrl: '/file-viewer/xml/xmllint-browser.mjs',
+      xsltModuleUrl: '/file-viewer/xml/xslt-wasm.js',
+    },
+  },
+}
+// 不再需要全局注册时调用 disableXmlProfiles()。
+```
+
+`xmllint.wasm` 必须与 `xmllint-browser.mjs` 位于同一目录。JS/MJS 使用
+`text/javascript`，WASM 使用 `application/wasm`。省略 runtime URL 时，
+默认从配置的 asset base 下的 `xml/` 查找；未配置 asset base 则相对于页面 URL。
+页面 CSP 需允许 `worker-src blob:` 和 WASM 编译（支持该指令的浏览器可使用
+`script-src 'wasm-unsafe-eval'`）。引擎和 profiles 仅允许同源 HTTP(S)，不跟随重定向。
+所有资源可随应用部署，运行时不依赖外网。
+
+Manifest 示例：
+
+```json
+{
+  "profiles": [{
+    "id": "invoice-v1",
+    "match": {
+      "rootNamespace": { "enabled": true, "root": "invoice", "namespace": "urn:example:invoice:v1" },
+      "xsd": { "enabled": true }
+    },
+    "xsd": "./invoice.xsd",
+    "xslt": "./invoice.xsl"
+  }]
+}
+```
+
+相对路径以 manifest 所在目录为基准。也可以传 `xml.profiles` 数组和 `xml.baseUrl`，
+替代 `profilesUrl`。每个 profile 至少启用一项检查；root/namespace 和 XSD 可各自启用，
+同时启用时必须全部通过。仅有一个 profile 通过时才转换；多个匹配、无匹配或任何处理错误
+都保留 XML 源码，并通过 `xml.onDiagnostic`、标准 `onDiagnostic` 和界面诊断栏说明原因。
+
+转换后的 HTML 经过净化，放入无 sandbox 权限的隔离 iframe，并附带禁止脚本和外网的 CSP。
+`View Source` / `View Rendered` 切换使用已保留的原始 buffer，不重新下载、校验或转换，
+也不使用解析后重新序列化的 XML。源码视图强制关闭 pretty print；下载仍使用原文件。
+可通过 `xml.initialView: 'source'` 默认查看源码，通过 `xml.labels` 定制按钮文字。
+
+DTD、实体声明、XInclude、XSD include/import/redefine/override、XSLT include/import、
+`document()` 和扩展指令默认拒绝。当前没有开放外部资源 resolver；需要这些机制的文件会回退源码。
+默认总耗时上限 15 秒（最多 60 秒），XML 4 MiB、单个 schema/style 2 MiB、输出 8 MiB、
+资源总计 16 MiB、最多 32 个 profiles。`xml.limits` 可降低这些上限，不能取消。
+两个引擎的 WASM 线性内存均硬限 64 MiB；超时、取消和卸载会终止 Worker 并释放 Blob URL。
+
+源仓库的 `test/fixtures/issue-305/` 提供可再分发的 valid/invalid XML、XSD、XSLT 和 manifest。
+引擎许可证与具体上游来源见 [XML profiles notices](./licenses/xml-profiles/NOTICE.md)。

@@ -6,6 +6,7 @@ import {
   type FileViewerRendererPlugin,
   type RendererDefinition,
 } from '@file-viewer/core';
+import { getXmlProfilesLoader } from './xmlRegistration.js';
 
 export {
   getFileViewerMermaidLoader,
@@ -35,14 +36,33 @@ if (textDefinitions.length !== textRendererIds.length) {
 
 export const textRendererDefinitions = textDefinitions;
 
-export const renderFileViewerCode: FileRenderHandler<FileViewerRenderedInstance, HTMLDivElement> = (
+export const renderFileViewerCode: FileRenderHandler<FileViewerRenderedInstance, HTMLDivElement> = async (
   buffer,
   target,
   type,
   context?: FileRenderContext
-) => /^(?:html|htm)$/i.test(type || '')
-  ? import('./html.js').then(({ default: renderHtml }) => renderHtml(buffer, target, type, context))
-  : import('./code.js').then(({ default: renderCode }) => renderCode(buffer, target, type, context));
+) => {
+  if (/^(?:html|htm)$/i.test(type || '')) {
+    const { default: renderHtml } = await import('./html.js');
+    return renderHtml(buffer, target, type, context);
+  }
+  if (type?.trim().toLowerCase() === 'xml' && context?.options?.xml) {
+    const loader = getXmlProfilesLoader();
+    if (loader) {
+      const { default: renderXml } = await loader();
+      return renderXml(buffer, target, context);
+    }
+    const message = 'Enable @file-viewer/renderer-text/xml-profiles and deploy its self-hosted runtime assets.';
+    try {
+      context.options.xml.onDiagnostic?.({ code: 'capability-unavailable', message });
+    } catch { /* Host diagnostics must not prevent source preview. */ }
+    try {
+      context.options.onDiagnostic?.({ code: 'xml-profile-capability-unavailable', level: 'warning', message });
+    } catch { /* Host diagnostics must not prevent source preview. */ }
+  }
+  const { default: renderCode } = await import('./code.js');
+  return renderCode(buffer, target, type, context);
+};
 
 export const renderFileViewerMarkdown: FileRenderHandler<FileViewerRenderedInstance, HTMLDivElement> = (
   buffer,

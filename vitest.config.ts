@@ -2,7 +2,8 @@ import { defineConfig } from 'vitest/config';
 import { fileURLToPath, URL } from 'node:url';
 import { createRequire } from 'node:module';
 
-const coreRequire = createRequire(new URL('./packages/core/package.json', import.meta.url));
+const testRequire = createRequire(new URL('./package.json', import.meta.url));
+const ebookRequire = createRequire(new URL('./packages/renderers/ebook/package.json', import.meta.url));
 const vue3Require = createRequire(new URL('./packages/components/vue3/package.json', import.meta.url));
 const vuePlugin = vue3Require('@vitejs/plugin-vue') as () => import('vite').Plugin;
 
@@ -17,8 +18,8 @@ export default defineConfig({
       '@file-viewer/vue3': fileURLToPath(
         new URL('./packages/components/vue3/src/package/index.ts', import.meta.url),
       ),
-      linkedom: coreRequire.resolve('linkedom'),
-      pako: coreRequire.resolve('pako'),
+      linkedom: testRequire.resolve('linkedom'),
+      pako: ebookRequire.resolve('pako'),
       'msdoc-viewer': fileURLToPath(
         new URL('./packages/compat/msdoc-viewer/src/index.ts', import.meta.url),
       ),

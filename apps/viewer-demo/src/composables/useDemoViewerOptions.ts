@@ -7,7 +7,9 @@ import { createIfcRenderer } from '@file-viewer/renderer-3d/ifc'
 import { binaryRenderer } from '@file-viewer/renderer-binary'
 import { designRenderer } from '@file-viewer/renderer-design'
 import { dicomRenderer } from '@file-viewer/renderer-dicom'
+import { bpmnRenderer } from '@file-viewer/renderer-drawing/bpmn'
 import { signatureRenderer } from '@file-viewer/renderer-signature'
+import { enableFileViewerXmlProfiles } from '@file-viewer/renderer-text/xml-profiles'
 import { normalizeDemoDensity } from '@/composables/useDemoPreferences'
 import { createDemoModelOptions } from '@/composables/useDemoViewerSettings'
 import type { DemoLocale } from '@/composables/useDemoCopy'
@@ -50,12 +52,22 @@ const demoIfcRenderer = createIfcRenderer({
   showProperties: true
 })
 
+enableFileViewerXmlProfiles()
+
+const xmlLabels = {
+  'zh-CN': { viewSource: '查看源码', viewRendered: '查看文档', diagnostics: 'XML 诊断' },
+  'en-US': { viewSource: 'View Source', viewRendered: 'View Rendered', diagnostics: 'XML diagnostics' },
+  'ja-JP': { viewSource: 'ソースを表示', viewRendered: '文書を表示', diagnostics: 'XML 診断' },
+  'de-DE': { viewSource: 'Quelltext', viewRendered: 'Dokument', diagnostics: 'XML-Diagnose' }
+} satisfies Record<DemoLocale, NonNullable<FileViewerOptions['xml']>['labels']>
+
 const unifiedDemoRenderers = [
   allRenderers,
   designRenderer,
   dicomRenderer,
   signatureRenderer,
   binaryRenderer,
+  bpmnRenderer,
   demoIfcRenderer
 ] as unknown as NonNullable<FileViewerOptions['renderers']>
 
@@ -116,6 +128,16 @@ export function useDemoViewerOptions(input: UseDemoViewerOptionsInput) {
     // registered here while their heavy implementations remain format-lazy;
     // published presets and full packages keep their compatibility boundary.
     options.renderers = runtime.renderers ?? unifiedDemoRenderers
+    if (!immersive && runtime.xml === undefined) {
+      options.xml = {
+        profilesUrl: '/xml-profiles/profiles.json',
+        labels: xmlLabels[input.locale.value],
+        runtime: {
+          xsdWorkerUrl: '/file-viewer/xml/xmllint-browser.mjs',
+          xsltModuleUrl: '/file-viewer/xml/xslt-wasm.js'
+        }
+      }
+    }
     if (!options.locale && !options.i18n?.locale) {
       options.locale = input.locale.value
     }

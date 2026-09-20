@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
 import { mkdtemp, mkdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { basename, join } from 'node:path';
 import test from 'node:test';
 import {
   chooseVersionInteractively,
@@ -103,6 +103,43 @@ test('offline discovery verifies two manifests, sorts versions, and detects tamp
     assert(candidates.every(item => item.source === 'offline'));
     await writeFile(join(older.directory, older.filename), 'tampered');
     await assert.rejects(discoverOfflineVersions(root), /integrity mismatch|size mismatch/);
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test('offline bootstrap installs only the CLI dependency closure while verifying every tarball', async () => {
+  const root = await mkdtemp(join(tmpdir(), 'create-file-viewer-offline-closure-'));
+  try {
+    const { directory, filename } = await writeOfflineCandidate(root, '2.3.0');
+    const manifestPath = join(directory, 'file-viewer-offline-manifest.json');
+    const manifest = JSON.parse(await readFile(manifestPath, 'utf8'));
+    manifest.files[filename].dependencies = { '@file-viewer/asset-installer': '2.3.0' };
+    for (const [name, dependencyName] of [
+      ['asset-installer', '@file-viewer/asset-installer'],
+      ['renderer-pdf', '@file-viewer/renderer-pdf'],
+    ]) {
+      const tarball = `${name}-2.3.0.tgz`;
+      const content = Buffer.from(name);
+      await writeFile(join(directory, tarball), content);
+      manifest.files[tarball] = {
+        packageName: dependencyName,
+        version: '2.3.0',
+        dependencies: name === 'renderer-pdf' ? { 'pdf-lib': '^1.17.1' } : {},
+        size: content.byteLength,
+        integrity: integrity(content),
+      };
+    }
+    await writeFile(manifestPath, `${JSON.stringify(manifest, null, 2)}\n`);
+
+    const [candidate] = await discoverOfflineVersions(directory);
+    assert.deepEqual(candidate.tarballs.map(path => basename(path)), [
+      'asset-installer-2.3.0.tgz',
+      filename,
+    ]);
+
+    await writeFile(join(directory, 'renderer-pdf-2.3.0.tgz'), 'tampered');
+    await assert.rejects(discoverOfflineVersions(directory), /integrity mismatch|size mismatch/);
   } finally {
     await rm(root, { recursive: true, force: true });
   }

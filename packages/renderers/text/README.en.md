@@ -44,7 +44,7 @@ const options = {
 - With the text-tools capability installed, `patch` uses `diff2html` for side-by-side review and `bundle` / `bdl` enables Git bundle inspection.
 - With the Mermaid capability installed, fenced Mermaid blocks render as diagrams. Without it, the source stays visible with the exact CLI enablement command.
 - HTML/HTM opens a static page preview with a source-view toggle. `options.text.htmlView: 'source'` starts with the original source. Inline CSS and embedded images are preserved; scripts, forms, external navigation, and external resource requests are blocked by sanitization, CSP, and an opaque sandbox. This is not a website runtime.
-- XML, Vue, and similar files remain escaped source previews. HTML source supports the same highlighting, formatting, and large-text virtualization options.
+- XML, Vue, and similar files default to escaped source previews. XML can opt into the XSD/XSLT profiles below. HTML source supports the same highlighting, formatting, and large-text virtualization options.
 - Markdown uses `marked` for a read-only reading surface with dark/light theme support, table scrolling, and a unified zoom provider.
 - Markdown no longer falls back to source because of the general large-text threshold. Set `options.text.markdownVirtualizeAboveBytes` only when an application must bound exceptionally large Markdown files.
 - Does not depend on any online service or public CDN, making it suitable for intranet logs, configs, snippets, README files, and knowledge-base attachments.
@@ -52,3 +52,88 @@ const options = {
 ## Migration Note
 
 Standard/full includes base code, text, and Markdown without installing `diff2html`, `pako`, or Mermaid. Optional uploads show `npx file-viewer-cli add text-tools --write` or `add mermaid-markdown --write`; `preset-all` is only for explicit all/debug use.
+
+## Optional XML Profiles
+
+XML profiles use real libxml2 XML Schema 1.0 and libxslt XSLT 1.0 WASM engines.
+The ordinary text/standard/full installation does not install these optional peers
+or replace the browser's `XSLTProcessor`. To enable profiles, install the pinned
+engines and copy their assets:
+
+```sh
+pnpm add xmllint-wasm@5.3.0 xslt-polyfill@1.0.29
+pnpm exec file-viewer-xml-assets public/file-viewer/xml
+```
+
+The asset helper copies installed files without downloading or installing anything.
+It preserves unrelated destination files and includes JS/WASM, `licenses/`, and a
+SHA-256 `manifest.json`. Keep the notices with redistributed assets.
+
+Register once, then pass the options to Vanilla/Web Component or any standard component:
+
+```ts
+import { enableFileViewerXmlProfiles } from '@file-viewer/renderer-text/xml-profiles'
+
+const disableXmlProfiles = enableFileViewerXmlProfiles()
+const options = {
+  xml: {
+    profilesUrl: '/xml-profiles/profiles.json',
+    runtime: {
+      xsdWorkerUrl: '/file-viewer/xml/xmllint-browser.mjs',
+      xsltModuleUrl: '/file-viewer/xml/xslt-wasm.js',
+    },
+  },
+}
+// Call disableXmlProfiles() when registration is no longer needed.
+```
+
+Keep `xmllint.wasm` beside `xmllint-browser.mjs`. Serve JS/MJS as `text/javascript`
+and WASM as `application/wasm`. Omitted runtime URLs resolve under
+`xml/` in the configured asset base, or relative to the page when no asset base is
+configured. The host CSP must permit `worker-src blob:` and WASM compilation
+(`script-src 'wasm-unsafe-eval'` where supported). All profile and runtime resources
+must use same-origin HTTP(S) without redirects. Serve them with the application
+for offline/intranet use; no public CDN or document upload is involved.
+
+Example manifest:
+
+```json
+{
+  "profiles": [{
+    "id": "invoice-v1",
+    "match": {
+      "rootNamespace": { "enabled": true, "root": "invoice", "namespace": "urn:example:invoice:v1" },
+      "xsd": { "enabled": true }
+    },
+    "xsd": "./invoice.xsd",
+    "xslt": "./invoice.xsl"
+  }]
+}
+```
+
+Resource paths resolve against the manifest directory. Alternatively, supply
+`xml.profiles` and `xml.baseUrl` instead of `profilesUrl`. Each profile must enable
+at least one check. Root/namespace and XSD checks are independent; all enabled
+checks must pass. Exactly one matching profile triggers transformation. No match,
+ambiguity, validation errors and processing failures retain the XML source and
+report diagnostics through `xml.onDiagnostic`, the standard `onDiagnostic`, and
+the diagnostics panel.
+
+Generated HTML is sanitized and displayed in an opaque iframe with an empty
+sandbox and a CSP blocking scripts and external resources. `View Source` and
+`View Rendered` reuse the original input buffer and cached result without another
+download, validation or transformation. Source is never DOM serialization and
+pretty printing is disabled for this view. The original remains the download
+source. Use `xml.initialView: 'source'` or customize button copy with `xml.labels`.
+
+DTD/entity declarations, XInclude, schema include/import/redefine/override,
+XSLT include/import, `document()` and extension instructions fail closed. There
+is no external-resource resolver in this version; such documents fall back to source.
+The default operation deadline is 15 seconds, capped at 60 seconds. Hard ceilings
+are 4 MiB XML, 2 MiB per schema/stylesheet, 8 MiB output, 16 MiB total resources,
+and 32 profiles; `xml.limits` may lower them. Each engine's WASM linear memory is
+capped at 64 MiB. Timeout, cancellation and unload terminate workers and revoke Blob URLs.
+
+The source repository's `test/fixtures/issue-305/` contains redistributable
+valid/invalid XML, XSD, XSLT and a manifest. See [XML profiles notices](./licenses/xml-profiles/NOTICE.md)
+for verified licenses and upstream sources.

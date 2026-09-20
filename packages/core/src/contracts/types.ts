@@ -3,6 +3,8 @@
 // Keep this layer declarative: no DOM reads, renderer imports, or async loading
 // should be introduced here. Higher layers depend on these contracts, never the
 // other way around.
+import type { FileViewerXmlOptions } from './xml'
+
 export type FileViewerSourceKind = 'file' | 'url' | 'buffer' | 'empty'
 
 export type FileViewerThemeMode = 'light' | 'dark' | 'system'
@@ -1662,6 +1664,8 @@ export interface FileViewerOptions {
   geo?: FileViewerGeoOptions
   data?: FileViewerDataOptions
   binary?: FileViewerBinaryInspectorOptions
+  /** Configuration for the explicitly installed XML profile renderer. */
+  xml?: FileViewerXmlOptions
   design?: FileViewerDesignOptions
   drawing?: FileViewerDrawingOptions
   cad?: FileViewerCadOptions

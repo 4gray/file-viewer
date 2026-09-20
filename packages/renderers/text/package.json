@@ -1,6 +1,6 @@
 {
   "name": "@file-viewer/renderer-text",
-  "version": "3.1.1",
+  "version": "3.1.2",
   "private": false,
   "type": "module",
   "description": "Standalone code, text, and Markdown renderer for File Viewer; Mermaid, patch diff, and Git bundle tools are explicit opt-in capabilities.",
@@ -48,21 +48,33 @@
       "import": "./dist/index.js",
       "default": "./dist/index.js"
     },
-    "./package.json": "./package.json"
+    "./package.json": "./package.json",
+    "./xml-profiles": {
+      "types": "./dist/xml-profiles.d.ts",
+      "import": "./dist/xml-profiles.js",
+      "default": "./dist/xml-profiles.js"
+    },
+    "./xml-profile-assets": "./bin/copy-xml-profile-assets.mjs"
+  },
+  "bin": {
+    "file-viewer-xml-assets": "./bin/copy-xml-profile-assets.mjs"
   },
   "files": [
     "dist",
     "file-viewer.capability.json",
     "README.md",
     "README.en.md",
-    "LICENSE"
+    "LICENSE",
+    "bin/copy-xml-profile-assets.mjs",
+    "licenses/xml-profiles"
   ],
   "scripts": {
     "build": "tsc -b tsconfig.json && node --test test/*.test.mjs",
-    "type-check": "tsc -b tsconfig.json"
+    "type-check": "tsc -b tsconfig.json",
+    "test:xml-profiles:browser": "node test/issue-305-xml-profiles.browser.mjs"
   },
   "dependencies": {
-    "@file-viewer/core": "workspace:3.1.1",
+    "@file-viewer/core": "workspace:3.1.2",
     "@prettier/plugin-xml": "3.4.2",
     "dompurify": "3.4.15",
     "highlight.js": "^11.11.1",
@@ -74,7 +86,21 @@
     "mermaid": "^11.17.2",
     "pako": "^2.2.0",
     "jsdom": "^27.4.0",
-    "typescript": "^6.0.3"
+    "typescript": "^6.0.3",
+    "xmllint-wasm": "5.3.0",
+    "xslt-polyfill": "1.0.29"
+  },
+  "peerDependencies": {
+    "xmllint-wasm": "5.3.0",
+    "xslt-polyfill": "1.0.29"
+  },
+  "peerDependenciesMeta": {
+    "xmllint-wasm": {
+      "optional": true
+    },
+    "xslt-polyfill": {
+      "optional": true
+    }
   },
   "fileViewer": {
     "capabilityManifest": "./file-viewer.capability.json"

@@ -796,6 +796,35 @@ export const DEFAULT_RENDERER_DEFINITIONS = [
     }
   },
   {
+    "id": "bpmn",
+    "label": "BPMN 2.0",
+    "category": "drawing",
+    "extensions": [
+      "bpmn"
+    ],
+    "async": true,
+    "supportLevel": "structured",
+    "status": "experimental",
+    "packageName": "@file-viewer/renderer-drawing",
+    "presets": [],
+    "containerVersions": [
+      "BPMN 2.0 XML with BPMN DI"
+    ],
+    "knownLimits": [
+      "Explicit opt-in with bpmn-js",
+      "Diagram preview requires BPMN DI layout; source remains available without it",
+      "Read-only preview; process scripts are never executed",
+      "The bpmn.io watermark is retained under the upstream license"
+    ],
+    "capabilities": {
+      "download": true,
+      "print": false,
+      "exportHtml": false,
+      "zoom": "provider",
+      "search": false
+    }
+  },
+  {
     "id": "mindmap",
     "label": "Mind Map",
     "category": "mindmap",

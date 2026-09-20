@@ -113,6 +113,7 @@ export interface FileViewerRenderersPluginOptions {
 interface RendererModuleDescriptor {
   id: string
   packageName: string
+  importPath?: string
   exportName: string
   formats: readonly string[]
   rendererIds: readonly string[]
@@ -275,6 +276,16 @@ const rendererModules: readonly RendererModuleDescriptor[] = [
     formats: ['drawing', 'drawio', 'dio', 'excalidraw', 'mermaid', 'mmd', 'plantuml', 'puml'],
     rendererIds: ['drawing'],
     chunkName: 'file-viewer-drawing'
+  },
+  {
+    id: 'bpmn',
+    packageName: '@file-viewer/renderer-drawing',
+    importPath: '@file-viewer/renderer-drawing/bpmn',
+    exportName: 'bpmnRenderer',
+    formats: ['bpmn'],
+    rendererIds: ['bpmn'],
+    chunkName: 'file-viewer-drawing',
+    includeInPresetAll: false
   },
   {
     id: 'model',
@@ -1047,7 +1058,7 @@ function renderVirtualModule(
   )
   const rendererImports = selection.descriptors.map(
     (descriptor, index) =>
-      `import { ${descriptor.exportName} as renderer${index} } from '${descriptor.packageName}';`
+      `import { ${descriptor.exportName} as renderer${index} } from '${descriptor.importPath ?? descriptor.packageName}';`
   )
   const rendererNames = [
     ...(presetModule ? ['presetRenderers'] : []),
