@@ -85,14 +85,15 @@ export const sampleGroupsZh: DemoSampleGroup[] = [
   },
   {
     title: '脑图与绘图',
-    description: 'XMind / Mermaid / PlantUML / draw.io',
+    description: 'XMind / Mermaid / PlantUML / draw.io / BPMN',
     family: 'drawing',
     items: [
       { name: 'XMind 脑图', url: '/example/mindmap.xmind' },
       { name: 'Mermaid 架构图', url: '/example/architecture.mermaid' },
       { name: 'PlantUML 时序图', url: '/example/sequence.plantuml' },
       { name: 'Excalidraw', url: '/example/flow.excalidraw' },
-      { name: 'draw.io', url: '/example/process.drawio' }
+      { name: 'draw.io', url: '/example/process.drawio' },
+      { name: 'BPMN 流程图与源码', url: '/example/simple-process.bpmn' }
     ]
   },
   {
@@ -178,6 +179,8 @@ export const sampleGroupsZh: DemoSampleGroup[] = [
       { name: 'HTML', url: '/example/page.html' },
       { name: 'HTM', url: '/example/page.htm' },
       { name: 'XML', url: '/example/data.xml' },
+      { name: 'XML 发票（校验与转换）', url: '/example/xml-profiles/invoice-valid.xml' },
+      { name: 'XML 发票（校验失败回退）', url: '/example/xml-profiles/invoice-invalid.xml' },
       { name: 'VUE', url: '/example/component.vue' },
       { name: 'React', url: '/example/component.react' },
       { name: 'YAML', url: '/example/config.yaml' },
@@ -399,6 +402,9 @@ const englishSampleNameMap: Record<string, string> = {
   '/example/sequence.plantuml': 'PlantUML sequence',
   '/example/flow.excalidraw': 'Excalidraw scene',
   '/example/process.drawio': 'draw.io process',
+  '/example/simple-process.bpmn': 'BPMN diagram and source',
+  '/example/xml-profiles/invoice-valid.xml': 'XML invoice: validation and transformation',
+  '/example/xml-profiles/invoice-invalid.xml': 'XML invoice: validation failure and source fallback',
   '/example/book.epub': 'EPUB ebook',
   '/example/format-matrix.fb2': 'FictionBook 2 ebook',
   '/example/book.umd': 'UMD ebook',
@@ -535,6 +541,9 @@ const japaneseSampleNameMap: Record<string, string> = {
   '/example/architecture.mermaid': 'Mermaid アーキテクチャ図',
   '/example/sequence.plantuml': 'PlantUML シーケンス図',
   '/example/process.drawio': 'draw.io プロセス図',
+  '/example/simple-process.bpmn': 'BPMN プロセス図とソース',
+  '/example/xml-profiles/invoice-valid.xml': 'XML 請求書：検証と変換',
+  '/example/xml-profiles/invoice-invalid.xml': 'XML 請求書：検証失敗とソース表示',
   '/example/book.epub': 'EPUB 電子書籍',
   '/example/book.umd': 'UMD 電子書籍',
   '/example/putty-0.85.chm': 'CHM（PuTTY 公式マニュアル）',

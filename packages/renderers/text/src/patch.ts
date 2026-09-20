@@ -20,9 +20,16 @@ const patchStyle = `
 .patch-body .d2h-file-header{display:flex;align-items:center;gap:8px;padding:10px 12px;border-bottom:1px solid var(--patch-border);background:#f8fafc;color:var(--patch-muted);font-weight:800}
 .patch-body .d2h-file-name-wrapper{display:flex;min-width:0;align-items:center;gap:8px}
 .patch-body .d2h-file-name{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.patch-body .d2h-files-diff{display:flex}
+.patch-body .d2h-file-side-diff{flex:1 1 0;min-width:0;overflow-x:auto}
 .patch-body .d2h-diff-table{width:100%;border-collapse:collapse;font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,'Liberation Mono',monospace;font-size:1em;line-height:1.58}
-.patch-body .d2h-code-side-linenumber,.patch-body .d2h-code-linenumber{width:56px;padding:0 8px;border-right:1px solid var(--patch-border);color:var(--patch-muted);text-align:right;user-select:none}
-.patch-body .d2h-code-side-line,.patch-body .d2h-code-line{padding:0 10px;white-space:pre-wrap;word-break:break-word}
+.patch-body .d2h-diff-table td{padding:0;vertical-align:top}
+.patch-body td.d2h-code-side-linenumber,.patch-body td.d2h-code-linenumber{box-sizing:border-box;width:4.5em;min-width:4.5em;padding:0 8px;border-right:1px solid var(--patch-border);color:var(--patch-muted);text-align:right;white-space:nowrap;user-select:none}
+/* Ignore template whitespace; only source spans preserve indentation. Long lines scroll without changing matched row heights. */
+.patch-body .d2h-code-side-line,.patch-body .d2h-code-line{display:flex;min-height:1.58em;padding:0 10px;white-space:nowrap;word-break:normal;overflow-wrap:normal}
+.patch-body .d2h-code-line-prefix{flex:0 0 1ch;white-space:pre;user-select:none}
+.patch-body .d2h-code-line-ctn{display:block;flex:0 0 auto;white-space:pre}
+.patch-body .d2h-emptyplaceholder{background:var(--patch-bg)}
 .patch-body .d2h-ins{background:var(--patch-add)}
 .patch-body .d2h-del{background:var(--patch-del)}
 .patch-body .d2h-info{background:var(--patch-info);color:var(--patch-muted)}

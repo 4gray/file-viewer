@@ -4,7 +4,11 @@ import { fileURLToPath } from 'node:url'
 
 const sourceRoot = resolve(fileURLToPath(new URL('../../..', import.meta.url)))
 const exampleDir = join(sourceRoot, 'apps/viewer-demo/public/example')
+const xmlProfileDir = join(sourceRoot, 'apps/viewer-demo/public/xml-profiles')
 const binaryFixtureDir = join(sourceRoot, 'packages/renderers/binary/fixtures')
+const xmlFixtureDir = join(sourceRoot, 'packages/renderers/text/test/fixtures/issue-305')
+const xmlSamples = ['invoice-valid.xml', 'invoice-invalid.xml']
+const xmlResources = ['profiles.json', 'invoice.xsd', 'invoice.xsl']
 
 const makePng = () => {
   const bytes = new Uint8Array(33)
@@ -65,7 +69,17 @@ const generatedFixtures = [
 ]
 
 await mkdir(exampleDir, { recursive: true })
+await mkdir(join(exampleDir, 'xml-profiles'), { recursive: true })
+await mkdir(xmlProfileDir, { recursive: true })
 await Promise.all([
+  copyFile(
+    join(sourceRoot, 'packages/renderers/drawing/test/fixtures/simple-process.bpmn'),
+    join(exampleDir, 'simple-process.bpmn')
+  ),
+  ...xmlSamples.map((name) =>
+    copyFile(join(xmlFixtureDir, name), join(exampleDir, 'xml-profiles', name))
+  ),
+  ...xmlResources.map((name) => copyFile(join(xmlFixtureDir, name), join(xmlProfileDir, name))),
   copyFile(join(binaryFixtureDir, 'large.bin'), join(exampleDir, 'binary-raw.bin')),
   copyFile(join(binaryFixtureDir, 'pe32.bin'), join(exampleDir, 'binary-pe.exe')),
   copyFile(join(binaryFixtureDir, 'pe32.bin'), join(exampleDir, 'binary-pe.dll')),
@@ -77,10 +91,13 @@ console.log(
     {
       status: 'staged',
       files: [
-        'binary-raw.bin',
-        'binary-pe.exe',
-        'binary-pe.dll',
-        ...generatedFixtures.map(([name]) => name)
+        'example/simple-process.bpmn',
+        ...xmlSamples.map((name) => `example/xml-profiles/${name}`),
+        ...xmlResources.map((name) => `xml-profiles/${name}`),
+        'example/binary-raw.bin',
+        'example/binary-pe.exe',
+        'example/binary-pe.dll',
+        ...generatedFixtures.map(([name]) => `example/${name}`)
       ]
     },
     null,

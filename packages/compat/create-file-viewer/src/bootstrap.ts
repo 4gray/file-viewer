@@ -267,7 +267,7 @@ const inspectOfflineManifest = async (directory: string): Promise<BootstrapVersi
   if (manifest.schemaVersion !== 1 || !manifest.files || Array.isArray(manifest.files)) {
     throw new Error(`Invalid offline integrity manifest in ${directory}.`);
   }
-  const tarballs: string[] = [];
+  const packages = new Map<string, { archive: string; dependencies: Record<string, string> }>();
   const packageVersions = new Map<string, string>();
   let cliTarball: string | undefined;
   let cliVersion: string | undefined;
@@ -297,7 +297,10 @@ const inspectOfflineManifest = async (directory: string): Promise<BootstrapVersi
     }
     const integrity = `sha512-${createHash('sha512').update(content).digest('base64')}`;
     if (integrity !== item.integrity) throw new Error(`Offline tarball integrity mismatch: ${filename}.`);
-    tarballs.push(physicalArchive);
+    if (packages.has(item.packageName)) {
+      throw new Error(`Offline directory contains more than one ${item.packageName} tarball: ${directory}.`);
+    }
+    packages.set(item.packageName, { archive: physicalArchive, dependencies: item.dependencies });
     if (item.packageName === '@file-viewer/cli') {
       if (cliTarball) throw new Error(`Offline directory contains more than one @file-viewer/cli tarball: ${directory}.`);
       cliTarball = physicalArchive;
@@ -314,6 +317,22 @@ const inspectOfflineManifest = async (directory: string): Promise<BootstrapVersi
       throw new Error(`Offline root @file-viewer/cli@${String(declaredCli.version)} does not match ${cliVersion}.`);
     }
   }
+  const tarballs: string[] = [];
+  const visited = new Set<string>();
+  const visit = (packageName: string) => {
+    if (visited.has(packageName)) return;
+    const item = packages.get(packageName);
+    if (!item) throw new Error(`Offline CLI dependency ${packageName} is missing from ${directory}.`);
+    visited.add(packageName);
+    for (const dependencyName of Object.keys(item.dependencies).sort()) {
+      if (packages.has(dependencyName)) visit(dependencyName);
+      else if (dependencyName.startsWith('@file-viewer/')) {
+        throw new Error(`Offline CLI dependency ${dependencyName} is missing from ${directory}.`);
+      }
+    }
+    tarballs.push(item.archive);
+  };
+  visit('@file-viewer/cli');
   return { version: cliVersion, source: 'offline', directory: physicalRoot, cliTarball, tarballs };
 };
 

@@ -88,6 +88,8 @@ The eight `*-full` packages preserve the published v2.4 `preset-all` compatibili
 
 File Viewer is a viewer, not an editor. Fonts, vendor-specific features, encrypted files and very large inputs can affect fidelity or memory use. Check the format matrix before relying on a specialist format in production, and test with representative files from your own workflow.
 
+The source tree adds opt-in [BPMN diagrams](docs/guide/bpmn.md) and [XML validation/transformation profiles](docs/guide/xml-profiles.md). These are not included in npm 3.1.1; use the guides when testing the source build.
+
 ## Runtime assets
 
 Full packages include version-matched Workers, WASM, fonts and vendor assets, but those files must be served alongside your application. The default asset path is `<deployment-base>/file-viewer/`.

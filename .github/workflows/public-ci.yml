@@ -104,6 +104,10 @@ jobs:
         if: steps.impact.outputs.runtime != 'false'
         run: pnpm type-check
 
+      - name: Install Chromium and WebKit
+        if: steps.impact.outputs.runtime != 'false'
+        run: pnpm exec playwright install --with-deps chromium webkit
+
       - name: Run the issue regression gates
         if: steps.impact.outputs.runtime != 'false'
         run: pnpm test
@@ -129,10 +133,6 @@ jobs:
       - name: Verify Vue 3 toolbar contracts
         if: steps.impact.outputs.runtime != 'false'
         run: node apps/component-demo/scripts/verify-vue3-toolbar.mjs
-
-      - name: Install Chromium and WebKit
-        if: steps.impact.outputs.runtime != 'false'
-        run: pnpm exec playwright install --with-deps chromium webkit
 
       - name: Verify browser Avro decoding without Node globals
         run: pnpm verify:data-avro-browser
@@ -167,6 +167,10 @@ jobs:
       - name: Verify HTML, revisions, spreadsheet search and DOCX cover regressions
         if: steps.impact.outputs.runtime != 'false'
         run: node apps/viewer-demo/scripts/verify-closed-issue-regressions.mjs
+
+      - name: Verify built Demo BPMN, XML profiles and Patch previews
+        if: steps.impact.outputs.runtime != 'false'
+        run: pnpm verify:structured-preview-issues
 
       - name: Verify column dragging, sheet and zoom persistence, and the disabled option
         if: steps.impact.outputs.runtime != 'false'

@@ -62,6 +62,8 @@ The plugin reads the Vite major installed by the application. Vite 5–7 receive
 
 ## Optional Specialist Renderers
 
+Since 3.1.2, [BPMN diagrams](/guide/bpmn) and [XML validation and transformation profiles](/guide/xml-profiles) are available as explicit opt-ins. Neither is automatically enabled by Full packages.
+
 Adobe design, DICOM, digital-signature inspection, and binary inspection are explicit opt-ins. They are not dependencies of the eight published `@file-viewer/*-full` packages or the frozen `@file-viewer/preset-all` compatibility baseline. This preserves the published Full contract and prevents specialist Worker/WASM, medical-imaging, cryptographic, or binary-analysis dependencies from appearing during an ordinary upgrade.
 
 | Optional renderer | Formats | Direct npm install | CLI selection | What the viewer shows |
@@ -75,7 +77,7 @@ Adobe design, DICOM, digital-signature inspection, and binary inspection are exp
 
 The same rule applies to `@file-viewer/web-full`, `@file-viewer/vue3-full`, `@file-viewer/vue2.7-full`, `@file-viewer/vue2.6-full`, `@file-viewer/react-full`, `@file-viewer/react-legacy-full`, `@file-viewer/jquery-full`, and `@file-viewer/svelte-full`.
 
-Keep the Full package installed, then add only the specialist renderer the application needs. The following example enables all four current opt-ins; remove any package, import, and array entry that the application does not need:
+Keep the Full package installed, then add only the specialist renderer the application needs. The following example enables four specialist renderers; remove any package, import, and array entry that the application does not need:
 
 ```bash
 npm install @file-viewer/renderer-binary @file-viewer/renderer-design @file-viewer/renderer-dicom @file-viewer/renderer-signature

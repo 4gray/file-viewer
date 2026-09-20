@@ -197,6 +197,11 @@ test('MAPI: property observer captures Unicode and ANSI supplemental metadata on
   assert.equal(f.sentRepresentingName, 'Author\noverflow');
   captureMsgProperty(f, 0x3713001e, text.encode('images/inline.png\0'));
   assert.equal(f.contentLocation, 'images/inline.png');
+  captureMsgProperty(f, 0x0e04001f, Uint8Array.from(Buffer.from('Alice\0', 'utf16le')));
+  captureMsgProperty(f, 0x0e04001f, Uint8Array.of(2, 0, 0, 0, 3, 0, 0, 0));
+  assert.equal(f.displayTo, 'Alice');
+  captureMsgProperty(f, 0x0e03001f, Uint8Array.of(2, 0, 0, 0, 3, 0, 0, 0));
+  assert.equal(f.displayCc, undefined);
   captureMsgProperty(f, 0x3001001f, text.encode('ignored'));
   assert.equal(f.name, undefined);
   assert.throws(() => captureMsgProperty(f, 0x0042001f, new Uint8Array(65537)), /limit/);

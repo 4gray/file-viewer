@@ -65,6 +65,8 @@
 
 ## 可选专业 renderer
 
+从 3.1.2 起，[BPMN 流程图](/zh/guide/bpmn) 和 [XML 校验与转换配置](/zh/guide/xml-profiles) 可显式启用，但不会随 Full 包自动开启。
+
 Adobe 设计、DICOM、数字签名检查与二进制检查器都是显式可选能力，不属于八个已发布 `@file-viewer/*-full` 包或冻结的 `@file-viewer/preset-all` 兼容基线。这样普通升级不会额外引入专业 Worker/WASM、医学影像、密码学或二进制分析依赖，也不会改变 Full 包已经发布的能力边界。
 
 | 可选 renderer | 格式 | 直接安装 | CLI 选择 | 能力边界 |
@@ -547,7 +549,7 @@ fileViewerRenderers({
 - [x] `FileViewerOptions.builtinRenderers` 支持 `all`、`lite`、`none`，为默认轻量化和显式全量装配提供稳定开关。
 - [x] wrapper README 和开源总仓 README 补齐 `renderers` / `rendererMode` / `builtinRenderers` 的按需装配示例，并由 `verify:ecosystem-readmes` 校验 `@file-viewer/vite-plugin`、`virtual:file-viewer-renderers` 和 `configuredFileViewerRenderers` 等关键接入口径。
 - [x] Vue3 原生组件渲染面板切换到同一套 renderer plugin/preset 装配链路，`options.renderers`、`rendererMode` 和 `builtinRenderers` 会在组件路径真实生效。
-- [x] `@file-viewer/preset-all` 在既有兼容能力基础上加入浏览器原生 CHM，共 222 个稳定扩展名、33 条链路；后续新增的 Adobe 设计、DICOM、数字签名/证据与二进制检查器均为显式按需渲染器，不会静默进入既有 preset/full 依赖闭包。完整源码目录当前为 273 个扩展名（224 个稳定、49 个实验）和 46 条链路。
+- [x] `@file-viewer/preset-all` 在既有兼容能力基础上加入浏览器原生 CHM，共 222 个稳定扩展名、33 条链路；后续新增的 Adobe 设计、DICOM、数字签名/证据与二进制检查器均为显式按需渲染器，不会静默进入既有 preset/full 依赖闭包。完整源码目录当前为 274 个扩展名（224 个稳定、50 个实验）和 47 条链路。
 - [x] `pnpm audit:renderer-deps` 输出所有 core 直接依赖对应的目标 renderer package，不允许 unclassified。
 - [x] `pnpm verify:on-demand-boundaries` 守住按需加载边界：core 不依赖 renderer/preset/wrapper，标准组件包不依赖 renderer/preset，compat 包只 alias 到目标组件，`preset-lite` / `preset-office` / `preset-engineering` 只能聚合各自白名单 renderer，`preset-all` 才聚合完整 renderer。
 

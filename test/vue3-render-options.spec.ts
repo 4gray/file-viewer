@@ -8,6 +8,32 @@ vi.mock('vue', async (importOriginal) => ({
 }))
 
 describe('Vue document render options', () => {
+  it('reloads XML profiles when configuration changes without changing the file', async () => {
+    const scope = effectScope()
+    const props = reactive({ xml: { profilesUrl: '/profiles/first.json' } })
+    const refreshPreview = vi.fn()
+    scope.run(() => useViewerPreviewLifecycle({
+      getFile: () => 'invoice.xml',
+      getUrl: () => undefined,
+      getRenderOptions: () => props.xml,
+      refreshPreview,
+      cancelPreview: vi.fn(),
+      clearRenderedContent: vi.fn(),
+      resetLoading: vi.fn(),
+      stopZoomObserver: vi.fn(),
+      stopFitObserver: vi.fn(),
+      stopViewStateObserver: vi.fn()
+    }))
+    expect(refreshPreview).toHaveBeenCalledTimes(1)
+    props.xml = { profilesUrl: '/profiles/first.json' }
+    await nextTick()
+    expect(refreshPreview).toHaveBeenCalledTimes(1)
+    props.xml.profilesUrl = '/profiles/second.json'
+    await nextTick()
+    expect(refreshPreview).toHaveBeenCalledTimes(2)
+    scope.stop()
+  })
+
   it('rerenders for semantic render-option changes, not equivalent option objects', async () => {
     const scope = effectScope()
     const props = reactive({ file: 'contract.docx', docx: { reviewMode: 'all' } })

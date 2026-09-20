@@ -52,6 +52,7 @@ const demoWorkspaceSourceAliases = [
   ['@file-viewer/renderer-design', '../../packages/renderers/design/src/index.ts'],
   ['@file-viewer/renderer-dicom', '../../packages/renderers/dicom/src/index.ts'],
   ['@file-viewer/renderer-drawing', '../../packages/renderers/drawing/src/index.ts'],
+  ['@file-viewer/renderer-drawing/bpmn', '../../packages/renderers/drawing/src/bpmn.ts'],
   ['@file-viewer/renderer-eda', '../../packages/renderers/eda/src/index.ts'],
   ['@file-viewer/renderer-email', '../../packages/renderers/email/src/index.ts'],
   ['@file-viewer/renderer-epub', '../../packages/renderers/ebook/src/index.ts'],
@@ -65,6 +66,7 @@ const demoWorkspaceSourceAliases = [
   ['@file-viewer/renderer-signature', '../../packages/renderers/signature/src/index.ts'],
   ['@file-viewer/renderer-spreadsheet', '../../packages/renderers/spreadsheet/src/index.ts'],
   ['@file-viewer/renderer-text', '../../packages/renderers/text/src/index.ts'],
+  ['@file-viewer/renderer-text/xml-profiles', '../../packages/renderers/text/src/xml-profiles.ts'],
   ['@file-viewer/renderer-typst', '../../packages/renderers/typst/src/index.ts'],
   ['@file-viewer/renderer-word', '../../packages/renderers/word/src/index.ts']
 ] as const

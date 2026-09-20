@@ -139,6 +139,15 @@ export const rendererModularizationLines = [
     dependencies: ['roughjs', 'mermaid', 'plantuml-encoder', '@panzoom/panzoom']
   },
   {
+    id: 'engineering-bpmn',
+    group: 'engineering',
+    targetPackage: '@file-viewer/renderer-drawing',
+    phase: 5,
+    status: 'extracted',
+    renderers: ['bpmn'],
+    dependencies: ['bpmn-js']
+  },
+  {
     id: 'engineering-mindmap',
     group: 'engineering',
     targetPackage: '@file-viewer/renderer-mindmap',
@@ -209,6 +218,15 @@ export const rendererModularizationLines = [
     status: 'extracted',
     renderers: ['code', 'markdown'],
     dependencies: ['highlight.js', 'marked', 'diff2html', 'pako']
+  },
+  {
+    id: 'xml-profiles',
+    group: 'mediaAndData',
+    targetPackage: '@file-viewer/renderer-text',
+    phase: 5,
+    status: 'extracted',
+    renderers: ['code'],
+    dependencies: ['xmllint-wasm', 'xslt-polyfill']
   },
   {
     id: 'media',
@@ -286,6 +304,15 @@ export const rendererModularizationLines = [
     status: 'extracted',
     renderers: ['data-asset'],
     dependencies: ['ag-psd', 'sql.js', 'hyparquet', 'avsc']
+  },
+  {
+    id: 'binary-inspector',
+    group: 'mediaAndData',
+    targetPackage: '@file-viewer/renderer-binary',
+    phase: 5,
+    status: 'extracted',
+    renderers: ['binary-inspector'],
+    dependencies: []
   },
   {
     id: 'worker-dom',

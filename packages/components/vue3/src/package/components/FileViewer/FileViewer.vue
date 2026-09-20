@@ -677,7 +677,8 @@ useViewerPreviewLifecycle({
   getRenderOptions: () => [
     effectiveOptions.value?.docx,
     effectiveOptions.value?.text,
-    effectiveOptions.value?.image
+    effectiveOptions.value?.image,
+    effectiveOptions.value?.xml
   ],
   cancelPreview,
   clearRenderedContent,

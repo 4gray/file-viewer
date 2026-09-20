@@ -238,7 +238,11 @@ export function captureMsgProperty(fields: MsgFields, tag: number, raw: Uint8Arr
   const type = tag & 0xffff;
   if (!name || !raw || (type !== 0x001f && type !== 0x001e)) return;
   if (raw.length > 65536) throw new Error('Outlook MSG metadata exceeds the safety limit.');
-  fields[name] = decodeEmailHtmlBytes(raw, type === 0x001f ? 1200 : codepage || 1252);
+  const value = decodeEmailHtmlBytes(raw, type === 0x001f ? 1200 : codepage || 1252);
+  // MsgReader also observes inline property-table references, whose 8-byte
+  // length/flags record is not the variable-length string stored in the CFB.
+  if (/[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]/.test(value)) return;
+  fields[name] = value;
 }
 
 export async function parseMsg(

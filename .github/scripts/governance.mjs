@@ -267,7 +267,8 @@ export function validateIssueReport({ title, body, labels = [] }) {
   const publicMethod =
     /public or sanitized sample attached|public (?:download or minimal reproduction|download) link/i.test(
       sharingMethod
-    )
+    ) ||
+    (!privateMethod && hasPublicArtifact(sample))
 
   const inlineMethod = /inline configuration and commands/i.test(sharingMethod)
   const steps = sections.get('minimal reproduction steps') || ''
