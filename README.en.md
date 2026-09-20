@@ -2,16 +2,32 @@
   <a href="https://file-viewer.app/en/"><img src="docs/public/_media/logo.png" width="92" alt="File Viewer logo"></a>
 </p>
 
-# File Viewer
+<h1 align="center">File Viewer</h1>
 
-File Viewer adds read-only file previews to web applications. It renders Office documents, PDF/OFD, archives, email, CAD and other formats in the browser. The built-in renderers do not require a conversion server; your application supplies the file, and you can host the Workers, WASM, fonts and other runtime assets yourself.
+<p align="center">
+  File Viewer provides read-only previews for Office, PDF/OFD, CAD, archives, email and more, in the browser.<br>
+  Built-in renderers need no conversion server; Workers, WASM and fonts can be self-hosted.
+</p>
 
-[English](README.md) | [简体中文](README.zh-CN.md) | [Demo](https://demo.file-viewer.app/) | [Documentation](https://doc.file-viewer.app/) | [Format matrix](https://doc.file-viewer.app/guide/formats) | [Releases](https://github.com/flyfish-dev/file-viewer/releases)
+<p align="center">
+  <strong>English</strong> · <a href="README.zh-CN.md">简体中文</a>
+</p>
 
-[![Public CI](https://github.com/flyfish-dev/file-viewer/actions/workflows/public-ci.yml/badge.svg?branch=main)](https://github.com/flyfish-dev/file-viewer/actions/workflows/public-ci.yml)
-[![npm version](https://img.shields.io/npm/v/@file-viewer/core?logo=npm)](https://www.npmjs.com/package/@file-viewer/core)
+<p align="center">
+  <a href="https://demo.file-viewer.app/">Live demo</a> ·
+  <a href="https://doc.file-viewer.app/">Documentation</a> ·
+  <a href="https://doc.file-viewer.app/guide/formats">Format matrix</a> ·
+  <a href="https://github.com/flyfish-dev/file-viewer/releases">Releases</a>
+</p>
 
-[![File Viewer demo](docs/public/_media/file-viewer-demo-v2.2.6-formats-en.gif)](https://demo.file-viewer.app/)
+<p align="center">
+  <a href="https://github.com/flyfish-dev/file-viewer/actions/workflows/public-ci.yml"><img src="https://github.com/flyfish-dev/file-viewer/actions/workflows/public-ci.yml/badge.svg?branch=main" alt="Public CI"></a>
+  <a href="https://www.npmjs.com/package/@file-viewer/core"><img src="https://img.shields.io/npm/v/@file-viewer/core?logo=npm" alt="npm version"></a>
+</p>
+
+<p align="center">
+  <a href="https://demo.file-viewer.app/"><img src="docs/public/_media/file-viewer-demo-v2.2.6-formats-en.gif" width="920" alt="Live demo switching between document and engineering previews"></a>
+</p>
 
 ## Quick start
 
