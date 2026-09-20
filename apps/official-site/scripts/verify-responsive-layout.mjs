@@ -74,16 +74,20 @@ try {
         const page = await context.newPage()
         const errors = []
         page.on('pageerror', (error) => errors.push(error.message))
-        // Embedded products have their own rendering gates; this gate measures the host layout.
+        // Embedded products have their own gates; keep host scripts intact, including SRI.
         await context.route('**/*', (route) => {
           const url = new URL(route.request().url())
-          return url.origin === new URL(baseUrl).origin
-            ? route.continue()
-            : route.fulfill({
-                status: 200,
-                contentType: 'text/html',
-                body: '<!doctype html><title>Embed</title>'
-              })
+          if (
+            url.origin === new URL(baseUrl).origin ||
+            route.request().resourceType() !== 'document'
+          ) {
+            return route.continue()
+          }
+          return route.fulfill({
+            status: 200,
+            contentType: 'text/html',
+            body: '<!doctype html><title>Embed</title>'
+          })
         })
         await page.goto(new URL(locale === 'en-US' ? '/en/' : '/', baseUrl).href)
         await page.locator('#ecosystem').waitFor()
