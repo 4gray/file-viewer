@@ -38,6 +38,10 @@ jobs:
           assert hashlib.sha256(patch).hexdigest() == '49107c698a7d3ddd47694f373dab29f94ed371d0db592e0d0d6116e1cbf452f7'
           subprocess.run(['git','apply','--check','-'],input=patch,check=True)
           subprocess.run(['git','apply','-'],input=patch,check=True)
+          adjustment = (root / 'adjustments.patch').read_bytes().replace(b'\n diff --git ',b'\ndiff --git ')
+          assert hashlib.sha256(adjustment).hexdigest() == '9df0ea358e54b52ce41cc322e3d8d9119671e7d580693789ed7d07c33808956e'
+          subprocess.run(['git','apply','--check','-'],input=adjustment,check=True)
+          subprocess.run(['git','apply','-'],input=adjustment,check=True)
           paths = json.loads((root / 'paths.json').read_text())
           assert len(paths) == 19 and all(not p.startswith('.github/') and '..' not in pathlib.PurePosixPath(p).parts for p in paths)
           assert all(pathlib.Path(p).is_file() for p in paths)

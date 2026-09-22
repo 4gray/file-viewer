@@ -1,0 +1,69 @@
+diff --git a/docs/regressions/output-compatibility-20260922.md b/docs/regressions/output-compatibility-20260922.md
+index 8641ffe..2a0dec8 100644
+--- a/docs/regressions/output-compatibility-20260922.md
++++ b/docs/regressions/output-compatibility-20260922.md
+@@ -7,7 +7,7 @@
+ | Canvas 导出 | 位图替换为图片时丢失 CSS 尺寸、定位和变换，导致高分屏位图按像素宽高放大。现在保留已计算的显示盒、定位、透明度及类名，不改动原 Canvas。 |
+ | 页面测量 | 页面测量依赖全局 window，且未计入 content-box 的内边距和边框。改为所属文档的窗口，使用未缩放的完整页面盒。 |
+ | DOCX 混合纸张 | 打印规则只读取首页尺寸，横向分节和不同纸张被统一。固定分页按页生成具名 CSS 页面规则，保留文档边距，取消外层统一宽度限制。流式模式保持浏览器分页。 |
+-| PDF 页面方向 | 缩略图、适配和导出传入查看器偏移时覆盖了页面原有旋转。统一使用原始旋转加用户偏移，并按各页实际方向及尺寸输出打印页面。 |
++| PDF 页面方向 | 缩略图、适配和导出传入查看器偏移时覆盖了页面原有旋转。统一使用原始旋转加用户偏移，并按各页实际方向及尺寸输出打印页面。位图像素取整不再改变纸张几何尺寸。 |
+ | 输出就绪 | 图片 decode 等待可能绕过超时，后台窗口可能不执行动画帧。计时从等待开始即生效，清理事件与计时器；等待字体后再进行布局绘制，资源失败使用浏览器回退。 |
+ 
+ ## 回归检查
+@@ -22,7 +22,7 @@
+ 
+ ## 复测结果与边界
+ 
+-Word 饼图类型、图表轴、嵌入图片及默认外部内容隔离已复测，未将已正常工作
++Word 饼图类型、嵌入图片及默认外部内容隔离已复测，未将已正常工作
+ 的行为记为本轮修复。PDF JPEG2000 作为既有离线解码能力的回归项，不是新增
+ 解码器。#322 的全部页脚和分页保真问题仍不能仅凭本次打印修复判定为完成。
+ 
+ diff --git a/packages/renderers/pdf/src/pdf.ts b/packages/renderers/pdf/src/pdf.ts
+index 592e557..4e1d190 100644
+--- a/packages/renderers/pdf/src/pdf.ts
++++ b/packages/renderers/pdf/src/pdf.ts
+@@ -1991,8 +1991,8 @@ export default async function renderPdf(
+     });
+     (page as { cleanup?: () => void }).cleanup?.();
+     return {
+-      width: Math.ceil(viewport.width),
+-      height: Math.ceil(viewport.height),
++      width: viewport.width,
++      height: viewport.height,
+     };
+   };
+ 
+@@ -2033,8 +2033,9 @@ export default async function renderPdf(
+         scale: PixelsPerInch.PDF_TO_CSS_UNITS,
+         rotation: resolvePdfPageRotation(page.rotate, currentRotation),
+       });
+-      const pageWidth = Math.ceil(baseViewport.width);
+-      const pageHeight = Math.ceil(baseViewport.height);
++      // Raster dimensions are rounded below; physical paper geometry must not be.
++      const pageWidth = baseViewport.width;
++      const pageHeight = baseViewport.height;
+       const exportRatio = getPdfExportRatio(baseViewport.width, baseViewport.height, exportOptions.mode);
+       const renderViewport = page.getViewport({
+         scale: PixelsPerInch.PDF_TO_CSS_UNITS * exportRatio,
+ diff --git a/scripts/verify-output-compatibility.mjs b/scripts/verify-output-compatibility.mjs
+index 633db12..372e700 100644
+--- a/scripts/verify-output-compatibility.mjs
++++ b/scripts/verify-output-compatibility.mjs
+@@ -35,6 +35,7 @@ const near = (actual, expected, message, tolerance = 1) => assert.ok(Math.abs(ac
+ async function inspectPrint(html, name, expectedSizes) {
+   const page = await browser.newPage({ viewport: { width: 1200, height: 920 } })
+   try {
++    page.on('pageerror', error => errors.push(error.message))
+     await page.setContent(html)
+     await page.emulateMedia({ media: 'print' })
+     await page.evaluate(async () => {
+@@ -58,7 +59,6 @@ try {
+   if (!process.argv.includes('--unit')) {
+     const { chromium } = rootRequire('playwright')
+     browser = await chromium.launch({ headless: true, executablePath: process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH || undefined })
+-    browser.on('context', context => context.on('page', page => page.on('pageerror', error => errors.push(error.message))))
+     await build({ entryPoints: [path.join(root, 'test/output-compatibility/browser.ts')], outfile: path.join(temporary, 'browser.js'), bundle: true, platform: 'browser', format: 'iife', logLevel: 'warning' })
+     const script = await readFile(path.join(temporary, 'browser.js'), 'utf8')
+     const page = await browser.newPage({ viewport: { width: 1200, height: 920 } })
