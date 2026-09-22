@@ -491,7 +491,14 @@ function tableStyle(block: TableBlock): CssStyleObject {
   if (widthPx) style.width = `${widthPx}px`;
   else style.width = '100%';
   const marginLeft = twipsToPx(block.state?.leftIndent);
-  if (marginLeft) style['margin-inline-start'] = `${marginLeft}px`;
+  // Table justification wins over the indentation used by left-aligned tables.
+  if (block.state?.alignment === 1) {
+    style['margin-inline-start'] = 'auto';
+    style['margin-inline-end'] = 'auto';
+  } else if (block.state?.alignment === 2) {
+    style['margin-inline-start'] = 'auto';
+    style['margin-inline-end'] = '0';
+  } else if (marginLeft) style['margin-inline-start'] = `${marginLeft}px`;
   if (block.state?.rtl) style.direction = 'rtl';
   const spacing = block.rows.flatMap(row => row.cells).reduce((maximum, cell) => {
     const value = cell.meta?.spacingTwips;
@@ -511,6 +518,35 @@ function tableStyle(block: TableBlock): CssStyleObject {
   return style;
 }
 
+/** Match the parser's union grid, including rows that begin with a merged cell.
+ * Fixed-layout HTML otherwise divides that first colspan into equal columns. */
+function renderTableColumns(block: TableBlock): string {
+  const boundaries = new Set<number>();
+  for (const row of block.rows) for (const cell of row.cells) {
+    const left = cell.meta?.leftBoundary;
+    const right = cell.meta?.rightBoundary;
+    if (Number.isFinite(left) && Number.isFinite(right) && right! > left!) {
+      boundaries.add(left!);
+      boundaries.add(right!);
+    }
+  }
+  const sorted = [...boundaries].sort((a, b) => a - b);
+  if (sorted.length < 2) return '';
+  return `<colgroup>${sorted.slice(1).map((right, i) => `<col style="width:${twipsToPx(right - sorted[i]!)}px">`).join('')}</colgroup>`;
+}
+
+function renderCellBody(cell: TableCellBlock, context: RenderContext): string {
+  const body = reviewParagraphs(cell.paragraphs, context)
+    .map(paragraph => renderParagraphBlock(paragraph, context, { inline: true })).join('')
+    || '<div class="msdoc-paragraph"><br></div>';
+  // MS-DOC textFlow 5 keeps CJK glyphs upright in a vertical line. Put the
+  // writing mode on content, not <td>, so it cannot rotate the table's grid.
+  if (cell.meta?.textFlow === 5) {
+    return `<div class="msdoc-cell-vertical" style="writing-mode:vertical-rl;text-orientation:upright;margin:0 auto">${body}</div>`;
+  }
+  return body;
+}
+
 function renderTableBlock(block: TableBlock, context: RenderContext): string {
   const rows = block.rows.map((row) => {
     const rowHeight = row.state?.rowHeight ? twipsToPx(Math.abs(row.state.rowHeight)) : null;
@@ -522,15 +558,14 @@ function renderTableBlock(block: TableBlock, context: RenderContext): string {
         if ((cell.colspan ?? 1) > 1) attrs.push(` colspan="${cell.colspan}"`);
         if ((cell.rowspan ?? 1) > 1) attrs.push(` rowspan="${cell.rowspan}"`);
         const style = styleObjectToCss(cellStyle(cell));
-        const body = reviewParagraphs(cell.paragraphs, context)
-          .map((paragraph) => renderParagraphBlock(paragraph, context, { inline: true })).join('');
+        const body = renderCellBody(cell, context);
         return `<td class="msdoc-cell"${attrs.join('')}${style ? ` style="${style}"` : ''}>${body || '<div class="msdoc-paragraph"><br></div>'}</td>`;
       })
       .join('');
     return `<tr class="msdoc-row"${rowStyle}>${cells}</tr>`;
   }).join('');
 
-  return `<table class="msdoc-table msdoc-table-depth-${block.depth}" style="${styleObjectToCss(tableStyle(block))}"><tbody>${rows}</tbody></table>`;
+  return `<table class="msdoc-table msdoc-table-depth-${block.depth}" style="${styleObjectToCss(tableStyle(block))}">${renderTableColumns(block)}<tbody>${rows}</tbody></table>`;
 }
 
 function renderAttachmentsBlock(block: AttachmentsBlock): string {

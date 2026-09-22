@@ -55,3 +55,13 @@ PDF 渲染已经从 `@file-viewer/core` 移入本包，`pdfjs-dist` 只由 `@fil
 发布产物会把 Apache-2.0 的 PDF.js runtime 内封到 `dist/vendor/pdfjs`，并在打包前隔离 PDF.js 内部 webpack bootstrap。`provenance.json` 会记录应用声明补丁后的源文件哈希、变换次数和产物哈希，因此 webpack 4 消费项目不需要再为 renderer 内部路径配置 loader。
 
 内封运行时还包含 PDF.js 5.4.624 的文档初始化取消补丁，避免快速切换文件时主线程降级路径产生未处理的 Promise 异常；正常解析和密码错误仍会报告。补丁原文保留在 `dist/vendor/pdfjs/patches/`，其哈希记入 `provenance.json`。`pnpm verify:worker-lifecycle` 使用 Chromium/WebKit 分别验证真实 Worker 和主线程降级路径的取消、后续渲染及损坏文件报错。
+
+## 鼠标拖拽浏览
+
+设置 `options.pdf.handTool: true`，可在 PDF 阅读区按住鼠标左键拖动页面。默认关闭，
+保留原有文字选择行为。触摸滚动与双指缩放、链接、表单控件、滚动条及带修饰键的操作
+保持原生行为。
+
+```ts
+const options = { pdf: { handTool: true } }
+```

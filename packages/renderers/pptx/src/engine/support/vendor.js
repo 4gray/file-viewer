@@ -1,3 +1,4 @@
+import { createBuiltinDrawingMlTableStyle } from './table-styles.js';
 import { extractChartData } from './chart-data.js';
 import tinycolor from 'tinycolor2'
 import { parse } from './txml'
@@ -9986,7 +9987,8 @@ async function genTable(node, warpObj, groupContext) {
   var tableNode = getTextByPathList(node, [ "a:graphic", "a:graphicData", "a:tbl" ]);
   var xfrmNode = getTextByPathList(node, [ "p:xfrm" ]);
   /////////////////////////////////////////Amir////////////////////////////////////////////////
-  var getTblPr = getTextByPathList(node, [ "a:graphic", "a:graphicData", "a:tbl", "a:tblPr" ]);
+  var getTblPr = getTextByPathList(node, [ "a:graphic", "a:graphicData", "a:tbl", "a:tblPr" ]) || {};
+  getTblPr.attrs = getTblPr.attrs || {};
   var getColsGrid = getTextByPathList(node, [ "a:graphic", "a:graphicData", "a:tbl", "a:tblGrid", "a:gridCol" ]);
   var tblDir = "";
   if (getTblPr !== undefined) {
@@ -10010,9 +10012,9 @@ async function genTable(node, warpObj, groupContext) {
   }
 
   var thisTblStyle;
-  var tbleStyleId = getTblPr["a:tableStyleId"];
+  var tbleStyleId = getTblPr["a:tableStyleId"] || getTextByPathList(tableStyles, [ "a:tblStyleLst", "attrs", "def" ]);
   if (tbleStyleId !== undefined) {
-    var tbleStylList = tableStyles["a:tblStyleLst"]["a:tblStyle"];
+    var tbleStylList = getTextByPathList(tableStyles, [ "a:tblStyleLst", "a:tblStyle" ]);
     if (tbleStylList !== undefined) {
       if (tbleStylList.constructor === Array) {
         for (var k = 0; k < tbleStylList.length; k++) {
@@ -10027,6 +10029,8 @@ async function genTable(node, warpObj, groupContext) {
       }
     }
   }
+  thisTblStyle = thisTblStyle || createBuiltinDrawingMlTableStyle(tbleStyleId);
+  warpObj["thisTbiStyle"] = undefined;
   if (thisTblStyle !== undefined) {
     thisTblStyle["tblStylAttrObj"] = tblStylAttrObj;
     warpObj["thisTbiStyle"] = thisTblStyle;
@@ -10048,9 +10052,8 @@ async function genTable(node, warpObj, groupContext) {
     tbl_bgFillschemeClr = getTextByPathList(thisTblStyle, [ "a:wholeTbl", "a:tcStyle", "a:fill", "a:solidFill" ]);
     tbl_bgcolor = getSolidFill(tbl_bgFillschemeClr, undefined, undefined, warpObj);
   }
-  if (tbl_bgcolor !== "") {
-    tbl_bgcolor = "background-color: #" + tbl_bgcolor + ";";
-  }
+  tbl_bgcolor = typeof tbl_bgcolor === "string" && tbl_bgcolor
+    ? "background-color: #" + tbl_bgcolor + ";" : "";
   var tableGridColumns = asArray(getColsGrid);
   var tableGridWidth = resolveDrawingMlTableGridWidth(tableGridColumns.map(function (column) {
     return getTextByPathList(column, [ "attrs", "w" ]);
@@ -10271,7 +10274,7 @@ async function genTable(node, warpObj, groupContext) {
         var totalColSpan = 0;
         while (j < tcNodes.length) {
           if (rowSpanAry[j] == 0 && totalColSpan == 0) {
-            var a_sorce;
+            var a_sorce = undefined; // Column overrides never leak into the next cell.
             //j=0 : first col
             if (j == 0 && tblStylAttrObj["isFrstColAttr"] == 1) {
               a_sorce = "a:firstCol";
@@ -10345,7 +10348,7 @@ async function genTable(node, warpObj, groupContext) {
       } else {
         //single column
 
-        var a_sorce;
+        var a_sorce = undefined; // Column overrides never leak into the next cell.
         if (tblStylAttrObj["isFrstColAttr"] == 1 && !(tblStylAttrObj["isLstRowAttr"] == 1)) {
           a_sorce = "a:firstCol";
 
@@ -10385,7 +10388,7 @@ async function genTable(node, warpObj, groupContext) {
   //////////////////////////////////////////////////////////////////////////////////
 
 
-  return tableHtml;
+  return tableHtml + "</table>";
 }
 
 async function getTableCellParams(tcNodes, getColsGrid, row_idx, col_idx, thisTblStyle, cellSource, warpObj, tableRowHeights, groupContext) {
@@ -10449,9 +10452,9 @@ async function getTableCellParams(tcNodes, getColsGrid, row_idx, col_idx, thisTb
 
   //cell bords
   lin_bottm = getTextByPathList(tcNodes, [ "a:tcPr", "a:lnB" ]);
-  if (lin_bottm === undefined && cellSource !== undefined) {
+  if (lin_bottm === undefined) {
     if (cellSource !== undefined)
-      lin_bottm = getTextByPathList(thisTblStyle[cellSource], [ "a:tcStyle", "a:tcBdr", "a:bottom", "a:ln" ]);
+      lin_bottm = getTextByPathList(thisTblStyle, [ cellSource, "a:tcStyle", "a:tcBdr", "a:bottom", "a:ln" ]);
     if (lin_bottm === undefined) {
       lin_bottm = getTextByPathList(thisTblStyle, [ "a:wholeTbl", "a:tcStyle", "a:tcBdr", "a:bottom", "a:ln" ]);
     }
@@ -10459,7 +10462,7 @@ async function getTableCellParams(tcNodes, getColsGrid, row_idx, col_idx, thisTb
   lin_top = getTextByPathList(tcNodes, [ "a:tcPr", "a:lnT" ]);
   if (lin_top === undefined) {
     if (cellSource !== undefined)
-      lin_top = getTextByPathList(thisTblStyle[cellSource], [ "a:tcStyle", "a:tcBdr", "a:top", "a:ln" ]);
+      lin_top = getTextByPathList(thisTblStyle, [ cellSource, "a:tcStyle", "a:tcBdr", "a:top", "a:ln" ]);
     if (lin_top === undefined) {
       lin_top = getTextByPathList(thisTblStyle, [ "a:wholeTbl", "a:tcStyle", "a:tcBdr", "a:top", "a:ln" ]);
     }
@@ -10467,7 +10470,7 @@ async function getTableCellParams(tcNodes, getColsGrid, row_idx, col_idx, thisTb
   lin_left = getTextByPathList(tcNodes, [ "a:tcPr", "a:lnL" ]);
   if (lin_left === undefined) {
     if (cellSource !== undefined)
-      lin_left = getTextByPathList(thisTblStyle[cellSource], [ "a:tcStyle", "a:tcBdr", "a:left", "a:ln" ]);
+      lin_left = getTextByPathList(thisTblStyle, [ cellSource, "a:tcStyle", "a:tcBdr", "a:left", "a:ln" ]);
     if (lin_left === undefined) {
       lin_left = getTextByPathList(thisTblStyle, [ "a:wholeTbl", "a:tcStyle", "a:tcBdr", "a:left", "a:ln" ]);
     }
@@ -10475,7 +10478,7 @@ async function getTableCellParams(tcNodes, getColsGrid, row_idx, col_idx, thisTb
   lin_right = getTextByPathList(tcNodes, [ "a:tcPr", "a:lnR" ]);
   if (lin_right === undefined) {
     if (cellSource !== undefined)
-      lin_right = getTextByPathList(thisTblStyle[cellSource], [ "a:tcStyle", "a:tcBdr", "a:right", "a:ln" ]);
+      lin_right = getTextByPathList(thisTblStyle, [ cellSource, "a:tcStyle", "a:tcBdr", "a:right", "a:ln" ]);
     if (lin_right === undefined) {
       lin_right = getTextByPathList(thisTblStyle, [ "a:wholeTbl", "a:tcStyle", "a:tcBdr", "a:right", "a:ln" ]);
     }

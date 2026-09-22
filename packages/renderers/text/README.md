@@ -126,3 +126,10 @@ DTD、实体声明、XInclude、XSD include/import/redefine/override、XSLT incl
 
 源仓库的 `test/fixtures/issue-305/` 提供可再分发的 valid/invalid XML、XSD、XSLT 和 manifest。
 引擎许可证与具体上游来源见 [XML profiles notices](./licenses/xml-profiles/NOTICE.md)。
+
+### Markdown 标题导航
+
+没有显式 ID 的标题会生成保留 Unicode 字符的小写锚点，重复标题追加数字后缀。
+既有目录链接（例如 `[简介](#简介)`）只滚动当前预览器，在 Shadow DOM 或同页多个
+预览器中保持独立，不修改宿主页 URL。保留显式 ID、外部链接及带修饰键的点击行为。
+此能力不负责从 `[TOC]` 指令自动生成目录。

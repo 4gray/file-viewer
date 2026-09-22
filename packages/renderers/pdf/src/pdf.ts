@@ -1,3 +1,4 @@
+import { installPdfHandTool } from './pdfHandTool.js';
 import {
   getDocument,
   GlobalWorkerOptions,
@@ -638,6 +639,9 @@ export default async function renderPdf(
     root.insertBefore(toolbar, content);
   }
   target.replaceChildren(createStyle(documentRef), root);
+  const disposeHandTool = context?.options?.pdf?.handTool === true
+    ? installPdfHandTool(container)
+    : () => {};
 
   const scaleText = () => `${Math.round(currentScale * 100)}%`;
   const rotationText = () => `${currentRotation}°`;
@@ -2463,6 +2467,7 @@ export default async function renderPdf(
     $el: root,
     unmount() {
       destroyed = true;
+      disposeHandTool();
       loadVersion += 1;
       restorePdfJsMissingSystemFontWarnings();
       restorePdfJsMissingSystemFontWarnings = () => {};

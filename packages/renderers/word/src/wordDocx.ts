@@ -1,6 +1,7 @@
 import type { DocxProgressEvent, Options, renderAsync } from '@file-viewer/docx'
 import JSZip from 'jszip'
 import { correctDocxMixedAnchorOrigins } from './docxAnchors.js'
+import { observeDocxFrames } from './docxFrames.js'
 import {
   DEFAULT_FILE_VIEWER_DOCX_RUNTIME_VERSION,
   resolveFileViewerDocxWorkerJsZipUrl,
@@ -580,30 +581,11 @@ function installResponsiveStyle(target: HTMLDivElement) {
   return style
 }
 
-function wrapDocxSections(target: HTMLDivElement, pagedLayout: boolean) {
-  const wrapper = target.querySelector('.docx-wrapper')
-  if (!wrapper) {
-    return []
-  }
-
-  return Array.from(wrapper.children).flatMap(child => {
-    if (!isTargetHTMLElement(child, target) || !child.matches('section.docx')) {
-      return []
-    }
-
-    const frame = target.ownerDocument.createElement('div')
-    frame.className = pagedLayout ? 'docx-page-frame' : 'docx-flow-frame'
-    child.before(frame)
-    frame.appendChild(child)
-    return [frame]
-  })
-}
-
 function makeDocxResponsive(target: HTMLDivElement, context?: FileRenderContext) {
   target.classList.add('docx-fit-viewer')
   const style = installResponsiveStyle(target)
   const pagedLayout = context?.options?.docx?.visualPagination === true
-  const frames = wrapDocxSections(target, pagedLayout)
+  let frames: HTMLElement[] = []
   const view = getTargetWindow(target)
   const ResizeObserverCtor = view?.ResizeObserver
   let resizeFrame = 0
@@ -771,17 +753,22 @@ function makeDocxResponsive(target: HTMLDivElement, context?: FileRenderContext)
 
   const observer = ResizeObserverCtor ? new ResizeObserverCtor(resize) : null
   observer?.observe(target)
-  frames.forEach(frame => {
-    const page = getDocxPageElement(frame)
-    if (page) {
-      observer?.observe(page)
-    }
+  const disposeFrames = observeDocxFrames(target, pagedLayout, nextFrames => {
+    observer?.disconnect()
+    observer?.observe(target)
+    frames = nextFrames
+    frames.forEach(frame => {
+      const page = getDocxPageElement(frame)
+      if (page) observer?.observe(page)
+    })
+    resize()
   })
   applyResponsiveLayout()
 
   return () => {
     view?.cancelAnimationFrame(resizeFrame)
     observer?.disconnect()
+    disposeFrames()
     unregisterFileViewerZoomProvider(target)
     style.remove()
     target.classList.remove('docx-fit-viewer')

@@ -1,3 +1,4 @@
+import { installMarkdownAnchors } from './markdownAnchors.js';
 import { marked } from 'marked';
 import createDOMPurify from 'dompurify';
 import type { DOMPurify, WindowLike } from 'dompurify';
@@ -43,7 +44,7 @@ const hardenMarkdownLinks = (root: ParentNode) => {
 };
 
 const markdownStyle = `
-.markdown-viewer{min-height:100%;padding:28px 16px 48px;background:var(--file-viewer-render-surface-background,#eef1f4);overflow:auto;box-sizing:border-box}
+.markdown-viewer{height:100%;min-height:0;padding:28px 16px 48px;background:var(--file-viewer-render-surface-background,#eef1f4);overflow:auto;box-sizing:border-box}
 .markdown-body{color-scheme:light;--bgColor-default:#fff;--bgColor-muted:#f6f8fa;--bgColor-neutral-muted:#818b981f;--borderColor-default:#d1d9e0;--borderColor-muted:#d1d9e0b3;--borderColor-neutral-muted:#d1d9e0b3;--fgColor-default:#1f2328;--fgColor-muted:#59636e;--fgColor-accent:#0969da;background:var(--bgColor-default);border:1px solid rgba(20,35,53,.1);border-radius:12px;margin:0 auto;box-sizing:border-box;min-width:200px;max-width:var(--markdown-max-width,980px);padding:var(--markdown-padding,45px);color:var(--fgColor-default);font-size:var(--markdown-font-size,16px);box-shadow:0 18px 42px rgba(15,23,42,.1)}
 .markdown-body h1,.markdown-body h2,.markdown-body h3{margin-top:24px;margin-bottom:16px;font-weight:700;line-height:1.25}
 .markdown-body h1{padding-bottom:.3em;border-bottom:1px solid var(--borderColor-muted);font-size:2em}
@@ -257,6 +258,7 @@ export default async function renderMarkdown(
   const renderedHtml = await marked(stripMarkdownFrontmatter(text));
   article.append(sanitizeMarkdownHtml(article.ownerDocument, renderedHtml));
   hardenMarkdownLinks(article);
+  const disposeAnchors = installMarkdownAnchors(root, article);
 
   applyMarkdownZoom(root, zoom);
   root.append(article);
@@ -342,6 +344,7 @@ export default async function renderMarkdown(
   return {
     $el: target,
     unmount() {
+      disposeAnchors();
       unregisterFileViewerZoomProvider(root);
       target.replaceChildren();
     },

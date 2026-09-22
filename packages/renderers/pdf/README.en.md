@@ -55,3 +55,13 @@ PDF rendering has moved out of `@file-viewer/core` into this package, and `pdfjs
 The published renderer stages its Apache-2.0 PDF.js runtime under `dist/vendor/pdfjs` and isolates PDF.js' internal webpack bootstrap before packing. `provenance.json` records source hashes after the declared patches, transform counts, and staged output hashes, so webpack 4 consumers do not need a loader for renderer-internal paths.
 
 The staged runtime also includes a PDF.js 5.4.624 document-startup cancellation patch. It prevents unhandled promise rejections when switching files during main-thread fallback initialization; active parsing and password errors remain visible. The patch is included under `dist/vendor/pdfjs/patches/` with its hash in `provenance.json`. `pnpm verify:worker-lifecycle` tests cancellation, subsequent rendering, and invalid-file errors in both real and main-thread Workers on Chromium and WebKit.
+
+## Mouse panning
+
+`options.pdf.handTool: true` enables mouse drag-to-pan in the PDF viewport. It is
+`false` by default, preserving text selection. Touch scrolling/pinch, links, form
+fields, scrollbars, and modified clicks retain their native behavior.
+
+```ts
+const options = { pdf: { handTool: true } }
+```

@@ -701,6 +701,8 @@ export interface FileViewerArchivePasswordRequestContext {
 }
 
 export interface FileViewerPdfOptions {
+  /** Opt-in mouse hand-tool panning. Touch/pinch, links and form fields remain native. Default: false. */
+  handTool?: boolean
   toolbar?: boolean
   navigation?: boolean
   defaultNavigationVisible?: boolean

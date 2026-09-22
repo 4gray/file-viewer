@@ -361,7 +361,24 @@ const renderChart = async (message: ChartMessage, root: ParentNode) => {
   }
 
   if (chart.data) {
-    return bb.generate(chart) as BillboardChart;
+    // Billboard resets the bind target's position to relative. Keep DrawingML
+    // placement on the outer frame; only let the library own its inner surface.
+    const surface = chartTarget.ownerDocument.createElement('div');
+    surface.className = 'pptx-chart-surface';
+    surface.style.cssText = 'width:100%;height:100%;min-width:0;min-height:0;flex:1 1 auto';
+    chartTarget.replaceChildren(surface);
+    chart.bindto = surface;
+    try {
+      const instance = bb.generate(chart) as BillboardChart;
+      return {
+        destroy() {
+          try { instance.destroy?.(); } finally { surface.remove(); }
+        },
+      };
+    } catch (error) {
+      surface.remove();
+      throw error;
+    }
   }
 };
 

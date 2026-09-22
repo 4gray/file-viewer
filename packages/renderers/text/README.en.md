@@ -137,3 +137,12 @@ capped at 64 MiB. Timeout, cancellation and unload terminate workers and revoke 
 The source repository's `test/fixtures/issue-305/` contains redistributable
 valid/invalid XML, XSD, XSLT and a manifest. See [XML profiles notices](./licenses/xml-profiles/NOTICE.md)
 for verified licenses and upstream sources.
+
+### Markdown heading navigation
+
+Headings without an authored ID receive Unicode-preserving, lowercase IDs.
+Repeated headings get numeric suffixes. Existing table-of-contents links such as
+`[Introduction](#introduction)` scroll within their own viewer, including Shadow
+DOM and multiple viewers on one page; the host page URL is not changed. Authored
+IDs, external links and modified clicks are preserved. This does not generate a
+table of contents from a `[TOC]` directive.

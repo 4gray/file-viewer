@@ -56,7 +56,7 @@ const WORD_PAGE_CSS = `
   display:table;
   width:auto;
   max-width:100%;
-  table-layout:auto!important;
+  table-layout:fixed;
   border-collapse:collapse;
   border-spacing:0;
 }
@@ -81,7 +81,7 @@ const WORD_PAGE_CSS = `
   margin-bottom:0;
 }
 .msdoc-page .msdoc-cell span{
-  white-space:normal!important;
+  white-space:normal;
 }
 .msdoc-page .msdoc-page-break{
   display:none;
