@@ -1,46 +1,132 @@
 name: Compatibility follow-up
+
 on:
   push:
     branches: [fix/compatibility-review-20260922]
-    paths: ['.github/workflows/compatibility-followup.yml']
+  workflow_dispatch:
+
 permissions:
-  contents: read
+  contents: write
+  statuses: write
+
+concurrency:
+  group: output-review-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
-  prepare:
+  review:
+    if: github.repository == 'flyfish-dev/file-viewer' && github.ref == 'refs/heads/fix/compatibility-review-20260922'
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 20
     steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          fetch-depth: 1
+          persist-credentials: true
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020
         with:
           node-version: 24
-      - name: Prepare bounded reproduction inputs
+      - name: Apply reviewed output changes
         run: |
-          mkdir -p "$RUNNER_TEMP/review/inputs" "$RUNNER_TEMP/output"
           python3 - <<'PY'
-          import os, pathlib, urllib.request
-          root = pathlib.Path(os.environ['RUNNER_TEMP']) / 'review/inputs'
-          urls = {
-            'word-images.docx': 'https://github.com/user-attachments/files/32331964/2.docx',
-            'altchunk.docx': 'https://github.com/user-attachments/files/32318480/altchunk.docx',
-            'hyperlinks.docx': 'https://github.com/user-attachments/files/32318472/hyperlink-scheme.docx',
-            'mixed-pages.pdf': 'https://github.com/user-attachments/files/30925222/default.pdf',
-          }
-          for name, url in urls.items():
-            with urllib.request.urlopen(url, timeout=45) as response:
-              data = response.read(16 * 1024 * 1024 + 1)
-            assert len(data) <= 16 * 1024 * 1024
-            (root / name).write_bytes(data)
-            print(name, len(data), data[:8].hex())
+          import pathlib, base64, lzma, hashlib, subprocess, json
+          root = pathlib.Path('.github/output-review')
+          encoded = ''.join((root / f'payload-{i}.txt').read_text() for i in range(3))
+          decoder = lzma.LZMADecompressor(memlimit=128 * 1024 * 1024)
+          patch = decoder.decompress(base64.b64decode(encoded, validate=True), max_length=2 * 1024 * 1024)
+          assert decoder.eof and not decoder.unused_data
+          assert hashlib.sha256(patch).hexdigest() == '49107c698a7d3ddd47694f373dab29f94ed371d0db592e0d0d6116e1cbf452f7'
+          subprocess.run(['git','apply','--check','-'],input=patch,check=True)
+          subprocess.run(['git','apply','-'],input=patch,check=True)
+          paths = json.loads((root / 'paths.json').read_text())
+          assert len(paths) == 19 and all(not p.startswith('.github/') and '..' not in pathlib.PurePosixPath(p).parts for p in paths)
+          assert all(pathlib.Path(p).is_file() for p in paths)
+          subprocess.run(['git','diff','--check'],check=True)
           PY
-      - name: Install real build dependencies
+      - name: Install isolated real dependencies and pinned runtime patches
         run: |
-          cd "$RUNNER_TEMP/review"
-          printf '{"private":true,"type":"module"}\n' > package.json
-          npm install --ignore-scripts --no-audit --no-fund typescript@6.0.3 pdfjs-dist@5.4.624 pdf-lib@1.17.1 rtf.js@3.0.9 playwright@1.61.1
-          tar -czf "$RUNNER_TEMP/output/followup-inputs.tar.gz" .
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/review-runtime" output/output-compatibility
+          node --input-type=module <<'JS'
+          import fs from 'node:fs';
+          import path from 'node:path';
+          const dependencies = {};
+          for (const name of ['core','renderers/doc','renderers/word','renderers/pdf','renderers/text','renderers/pptx']) {
+            const p = JSON.parse(fs.readFileSync(`packages/${name}/package.json`, 'utf8'));
+            for (const [id,version] of Object.entries({...p.dependencies,...p.devDependencies})) {
+              dependencies[id] = version.startsWith('workspace:') ? version.slice(10) : version.replace(/^[~^]/,'');
+            }
+          }
+          Object.assign(dependencies,{playwright:'1.61.1','billboard.js':'3.18.0','d3-format':'3.1.2',esbuild:'0.28.2'});
+          fs.writeFileSync(path.join(process.env.RUNNER_TEMP,'review-runtime/package.json'),JSON.stringify({private:true,type:'module',dependencies},null,2));
+          JS
+          cd "$RUNNER_TEMP/review-runtime"
+          npm install --ignore-scripts --no-audit --no-fund
+          patch --batch --forward -p1 -d node_modules/pdfjs-dist < "$GITHUB_WORKSPACE/patches/pdfjs-dist@5.4.624.patch"
+          ln -s "$RUNNER_TEMP/review-runtime/node_modules" "$GITHUB_WORKSPACE/node_modules"
+          ln -s "$RUNNER_TEMP/review-runtime/node_modules" "$GITHUB_WORKSPACE/packages/renderers/pdf/node_modules"
+          cp package-lock.json "$GITHUB_WORKSPACE/output/output-compatibility/verification-package-lock.json"
+      - name: Build owning packages against actual dependencies
+        run: |
+          set -euo pipefail
+          npm --prefix packages/core run build 2>&1 | tee output/output-compatibility/build-core.log
+          rm -rf "$RUNNER_TEMP/review-runtime/node_modules/@file-viewer/core"
+          ln -s "$GITHUB_WORKSPACE/packages/core" "$RUNNER_TEMP/review-runtime/node_modules/@file-viewer/core"
+          npm --prefix packages/renderers/doc run build 2>&1 | tee output/output-compatibility/build-doc.log
+          rm -rf "$RUNNER_TEMP/review-runtime/node_modules/@file-viewer/doc"
+          ln -s "$GITHUB_WORKSPACE/packages/renderers/doc" "$RUNNER_TEMP/review-runtime/node_modules/@file-viewer/doc"
+          for package in pptx word pdf text; do
+            npm --prefix "packages/renderers/$package" run build 2>&1 | tee "output/output-compatibility/build-$package.log"
+          done
+          node packages/renderers/pdf/scripts/stage-pdfjs-runtime.mjs --check
+      - name: Install Chromium
+        run: |
+          node node_modules/playwright/cli.js install --with-deps chromium
+          sudo apt-get install -y fonts-noto-cjk
+      - name: Previous and output regressions
+        run: |
+          set -euo pipefail
+          node scripts/verify-compatibility-review.mjs 2>&1 | tee output/output-compatibility/previous-checks.log
+          cp output/compatibility-review/report.json output/output-compatibility/previous-report.json
+          node scripts/verify-output-compatibility.mjs 2>&1 | tee output/output-compatibility/checks.log
+      - name: Commit verified source and generated evidence
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          test "$GITHUB_REF" = refs/heads/fix/compatibility-review-20260922
+          python3 - <<'PY'
+          import pathlib, json, hashlib, subprocess, shutil, os
+          paths = json.loads(pathlib.Path('.github/output-review/paths.json').read_text())
+          output = pathlib.Path('output/output-compatibility')
+          report = json.loads((output / 'report.json').read_text())
+          assert report['mode'] == 'full-browser' and report['passed'] == len(report['checks'])
+          target = pathlib.Path('docs/regressions/evidence/output-compatibility-20260922')
+          target.mkdir(parents=True,exist_ok=True)
+          for p in output.iterdir():
+            if p.suffix in ['.png','.json'] and p.name != 'verification-package-lock.json':
+              dest = target / p.name
+              shutil.copyfile(p,dest)
+              paths.append(str(dest))
+          receipt = {'workflow_run':os.environ['GITHUB_RUN_ID'],'source_base':'fbda64bb0172c0c9d39b96626db3fcfccac81fd9','scope':'Six package builds, actual DOCX/PDF.js Chromium output checks, prior compatibility regression; not a full release gate.','sha256':{p:hashlib.sha256(pathlib.Path(p).read_bytes()).hexdigest() for p in paths}}
+          dest = target / 'verification.json'
+          dest.write_text(json.dumps(receipt,indent=2)+'\n')
+          paths.append(str(dest))
+          subprocess.run(['git','add','--']+paths,check=True)
+          subprocess.run(['git','diff','--cached','--check'],check=True)
+          assert set(subprocess.check_output(['git','diff','--cached','--name-only'],text=True).splitlines()) == set(paths)
+          PY
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git commit -m 'fix(output): preserve paper sizes and authored page rotation'
+          git push origin HEAD:refs/heads/fix/compatibility-review-20260922
+          head_sha="$(git rev-parse HEAD)"
+          gh api "repos/$GITHUB_REPOSITORY/statuses/$head_sha" -f state=success -f context='Output compatibility checks' -f description='Real package builds and browser output regressions passed' -f target_url="https://github.com/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID"
+          printf '%s\n' "$head_sha" > output/output-compatibility/commit.txt
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        if: always()
         with:
-          name: followup-inputs
-          path: ${{ runner.temp }}/output/
-          retention-days: 2
-          compression-level: 0
+          name: output-compatibility-evidence
+          path: output/output-compatibility/
+          retention-days: 7
+          if-no-files-found: warn
