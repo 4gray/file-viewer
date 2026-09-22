@@ -65,3 +65,12 @@ fields, scrollbars, and modified clicks retain their native behavior.
 ```ts
 const options = { pdf: { handTool: true } }
 ```
+
+## Page orientation and print output
+
+A page's stored PDF rotation is combined with the viewer's rotation offset in
+fit calculations, sidebar/first-page thumbnails, exported images, and printing.
+The view-state `rotation` field remains the viewer offset, not the stored page
+rotation. Mixed page sizes and orientations use individual CSS page rules for
+printing; no source PDF bytes are modified. Printer-dialog overrides may still
+force a uniform paper size.

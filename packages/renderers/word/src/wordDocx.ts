@@ -845,23 +845,23 @@ function normalizeDocxPageForPrint(frame: HTMLElement, pageSize: PrintPageSize) 
 }
 
 function buildDocxPrintStyle(target: HTMLDivElement) {
-  const firstFrame = target.querySelector<HTMLElement>(
+  const frames = Array.from(target.querySelectorAll<HTMLElement>(
     '.docx-page-frame, .docx-flow-frame, .docx-canvas-sheet'
-  )
-  const pageSize = getDocxFramePrintSize(firstFrame || undefined)
-  const selector = isDocxCanvasSheet(firstFrame || undefined)
+  ))
+  const firstFrame = frames[0]
+  const pageSize = getDocxFramePrintSize(firstFrame)
+  const selector = isDocxCanvasSheet(firstFrame)
     ? '.viewer-export-content .docx-canvas-sheet'
-    : firstFrame?.classList.contains('docx-flow-frame')
+    : isDocxFlowFrame(firstFrame)
       ? '.viewer-export-content .docx-flow-frame'
       : '.viewer-export-content .docx-page-frame'
-
   return buildPrintPageStyle({
     selector,
     width: pageSize.width,
-    height: firstFrame?.classList.contains('docx-flow-frame')
-      ? DOCX_DEFAULT_PAGE_SIZE.height
-      : pageSize.height,
-    heightMode: firstFrame?.classList.contains('docx-flow-frame') ? 'min' : 'fixed'
+    height: isDocxFlowFrame(firstFrame) ? DOCX_DEFAULT_PAGE_SIZE.height : pageSize.height,
+    heightMode: isDocxFlowFrame(firstFrame) ? 'min' : 'fixed',
+    // Flow sections are browser-paginated rather than fixed authored pages.
+    pages: frames.some(isDocxFlowFrame) ? undefined : frames.map(getDocxFramePrintSize)
   })
 }
 

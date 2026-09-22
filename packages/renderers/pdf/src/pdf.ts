@@ -69,6 +69,7 @@ import {
 import {
   clampPdfScale,
   normalizePdfRotation,
+  resolvePdfPageRotation,
   resolvePdfViewStateUpdate,
 } from './pdfViewState.js';
 import {
@@ -771,14 +772,14 @@ export default async function renderPdf(
 
       const baseViewport = page.getViewport({
         scale: PixelsPerInch.PDF_TO_CSS_UNITS,
-        rotation: currentRotation,
+        rotation: resolvePdfPageRotation(page.rotate, currentRotation),
       });
       const deviceScale = Math.min(2, Math.max(1, targetWindow.devicePixelRatio || 1));
       const thumbnailWidth = 46;
       const ratio = Math.min(1, thumbnailWidth / Math.max(baseViewport.width, 1));
       const renderViewport = page.getViewport({
         scale: PixelsPerInch.PDF_TO_CSS_UNITS * ratio * deviceScale,
-        rotation: currentRotation,
+        rotation: resolvePdfPageRotation(page.rotate, currentRotation),
       });
       const canvas = documentRef.createElement('canvas');
       const canvasContext = canvas.getContext('2d');
@@ -819,12 +820,12 @@ export default async function renderPdf(
     }
     const page = await pdfDocument.getPage(1);
     await ensurePdfPageCjkFontFallback(1, page as unknown as PdfTextContentPage);
-    const baseViewport = page.getViewport({ scale: 1, rotation: currentRotation });
+    const baseViewport = page.getViewport({ scale: 1, rotation: resolvePdfPageRotation(page.rotate, currentRotation) });
     const scale = Math.max(0.1, Math.min(
       captureOptions.width / Math.max(baseViewport.width, 1),
       captureOptions.height / Math.max(baseViewport.height, 1)
     ));
-    const viewport = page.getViewport({ scale, rotation: currentRotation });
+    const viewport = page.getViewport({ scale, rotation: resolvePdfPageRotation(page.rotate, currentRotation) });
     const canvas = documentRef.createElement('canvas');
     const canvasContext = canvas.getContext('2d');
     if (!canvasContext) {
@@ -1594,7 +1595,7 @@ export default async function renderPdf(
     if (pdfPage) {
       const viewportAtScaleOne = pdfPage.getViewport({
         scale: PixelsPerInch.PDF_TO_CSS_UNITS,
-        rotation: currentRotation,
+        rotation: resolvePdfPageRotation(pdfPage.rotate, currentRotation),
       });
       return {
         width: viewportAtScaleOne.width,
@@ -1986,19 +1987,26 @@ export default async function renderPdf(
     const page = await pdfDocument.getPage(Math.min(Math.max(pageNumber, 1), pdfDocument.numPages));
     const viewport = page.getViewport({
       scale: PixelsPerInch.PDF_TO_CSS_UNITS,
-      rotation: currentRotation,
+      rotation: resolvePdfPageRotation(page.rotate, currentRotation),
     });
     (page as { cleanup?: () => void }).cleanup?.();
     return {
-      width: Math.ceil(viewport.width),
-      height: Math.ceil(viewport.height),
+      width: viewport.width,
+      height: viewport.height,
     };
   };
 
   const buildPdfPrintStyle = async () => {
-    const size = await getPdfPrintPageSize();
+    const sizes = [];
+    const count = pdfContext.document?.numPages || 1;
+    for (let number = 1; number <= count; number += 1) {
+      if (destroyed) throw new Error(t('pdf.error.unloaded'));
+      sizes.push(await getPdfPrintPageSize(number));
+    }
+    const size = sizes[0];
     return buildPrintPageStyle({
       selector: '.viewer-export-content .pdf-export-page',
+      pages: sizes,
       width: size.width,
       height: size.height,
     });
@@ -2023,14 +2031,15 @@ export default async function renderPdf(
       );
       const baseViewport = page.getViewport({
         scale: PixelsPerInch.PDF_TO_CSS_UNITS,
-        rotation: currentRotation,
+        rotation: resolvePdfPageRotation(page.rotate, currentRotation),
       });
-      const pageWidth = Math.ceil(baseViewport.width);
-      const pageHeight = Math.ceil(baseViewport.height);
+      // Raster dimensions are rounded below; physical paper geometry must not be.
+      const pageWidth = baseViewport.width;
+      const pageHeight = baseViewport.height;
       const exportRatio = getPdfExportRatio(baseViewport.width, baseViewport.height, exportOptions.mode);
       const renderViewport = page.getViewport({
         scale: PixelsPerInch.PDF_TO_CSS_UNITS * exportRatio,
-        rotation: currentRotation,
+        rotation: resolvePdfPageRotation(page.rotate, currentRotation),
       });
       const canvas = documentRef.createElement('canvas');
       const canvasContext = canvas.getContext('2d');
