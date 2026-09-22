@@ -1,3 +1,4 @@
+import { getEmbeddedPictureCandidates } from './picture-resource.js';
 import { createBuiltinDrawingMlTableStyle } from './table-styles.js';
 import { extractChartData } from './chart-data.js';
 import tinycolor from 'tinycolor2'
@@ -200,7 +201,8 @@ function addRelationshipResource(targetObj, relationship, sourcePartPath) {
   }
   targetObj[attrs["Id"]] = {
     "type": getRelationshipTypeName(attrs["Type"]),
-    "target": resolvePartTarget(sourcePartPath, attrs["Target"])
+    "target": resolvePartTarget(sourcePartPath, attrs["Target"]),
+    "external": attrs["TargetMode"] === "External"
   };
 }
 
@@ -8635,7 +8637,7 @@ async function processPicNode(node, warpObj, source, sType, groupContext) {
   var mediaPicFlag = false;
   var order = node["attrs"]["order"];
 
-  var rid = node["p:blipFill"]["a:blip"]["attrs"]["r:embed"];
+  var blip = getTextByPathList(node, ["p:blipFill", "a:blip"]);
   var resObj;
   if (source == "slideMasterBg") {
     resObj = warpObj["masterResObj"];
@@ -8645,14 +8647,21 @@ async function processPicNode(node, warpObj, source, sType, groupContext) {
     //imgName = warpObj["slideResObj"][rid]["target"];
     resObj = warpObj["slideResObj"];
   }
-  var imgName = resObj[rid]["target"];
-
-  //console.log("processPicNode imgName:", imgName);
-  var imgFileExt = extractFileExtension(imgName).toLowerCase();
   var zip = warpObj["zip"];
-  var imgArrayBuffer = await zip.file(imgName).async('arraybuffer');
-  var mimeType = "";
-  var xfrmNode = node["p:spPr"]["a:xfrm"];
+  var imageDataUrl;
+  for (var candidate of getEmbeddedPictureCandidates(blip, resObj, zip)) {
+    try {
+      imageDataUrl = await getImageDataUrl(
+        extractFileExtension(candidate.target).toLowerCase(),
+        await candidate.entry.async('arraybuffer')
+      );
+      if (imageDataUrl) break;
+    } catch (error) {
+      // A damaged optional image must not discard the rest of this slide.
+      console.warn("Unable to decode embedded PPTX picture", error);
+    }
+  }
+  var xfrmNode = getTextByPathList(node, ["p:spPr", "a:xfrm"]);
   if (xfrmNode === undefined) {
     var idx = getTextByPathList(node, ["p:nvPicPr", "p:nvPr", "p:ph", "attrs", "idx"]);
     var type = getTextByPathList(node, ["p:nvPicPr", "p:nvPr", "p:ph", "attrs", "type"]);
@@ -8744,8 +8753,6 @@ async function processPicNode(node, warpObj, source, sType, groupContext) {
   }
   //console.log(node)
   //////////////////////////////////////////////////////////////////////////
-  mimeType = getMimeType(imgFileExt);
-  var imageDataUrl = await getImageDataUrl(imgFileExt, imgArrayBuffer);
   if (!imageDataUrl && ((vdoNode === undefined && audioNode === undefined) || !mediaProcess || !mediaSupportFlag)) {
     return "";
   }

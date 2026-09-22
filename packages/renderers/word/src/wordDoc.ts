@@ -425,19 +425,26 @@ export default async function render(buffer: ArrayBuffer, target: HTMLDivElement
   const rendered = await parseMsDocToHtml(buffer, {
     renderOptions: {
       reviewMode: context?.options?.docx?.reviewMode ?? 'all',
-      css: `${defaultMsDocCss()}\n${WORD_PAGE_CSS}`,
+      css: defaultMsDocCss(),
       externalLinkPolicy: context?.options?.docx?.externalLinkPolicy ?? 'block',
       externalResourcePolicy: context?.options?.docx?.externalResourcePolicy ?? 'block'
     }
   })
 
+  return mountWordDocument(rendered, target, context)
+}
+
+/** Shared page, zoom, export and cleanup boundary for legacy Word containers. */
+export function mountWordDocument(
+  rendered: { html: string; css: string }, target: HTMLDivElement, context?: FileRenderContext
+): AppWrapper {
   const targetWindow = target.ownerDocument.defaultView
   if (!targetWindow) {
     throw new Error('The DOC target must belong to a browser document')
   }
   const style = target.ownerDocument.createElement('style')
   style.dataset.msdoc = ''
-  style.textContent = rendered.css
+  style.textContent = `${rendered.css}\n${WORD_PAGE_CSS}`
   const content = target.ownerDocument.createElement('div')
   content.append(sanitizeMsDocHtml(wrapAsWordPages(rendered.html), targetWindow))
   target.replaceChildren(style, ...Array.from(content.childNodes))
