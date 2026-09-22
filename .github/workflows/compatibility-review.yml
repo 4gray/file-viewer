@@ -61,6 +61,7 @@ jobs:
           JS
           cd "$RUNNER_TEMP/review-runtime"
           npm install --ignore-scripts --no-audit --no-fund
+          patch --batch --forward -p1 -d node_modules/pdfjs-dist < "$GITHUB_WORKSPACE/patches/pdfjs-dist@5.4.624.patch"
           ln -s "$RUNNER_TEMP/review-runtime/node_modules" "$GITHUB_WORKSPACE/node_modules"
           ln -s "$RUNNER_TEMP/review-runtime/node_modules" "$GITHUB_WORKSPACE/packages/renderers/pdf/node_modules"
           cp package-lock.json "$GITHUB_WORKSPACE/output/compatibility-review/verification-package-lock.json"
