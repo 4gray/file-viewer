@@ -87,5 +87,6 @@ auditConfig:
     - GHSA-5j4c-8p2g-v4jx
 
 patchedDependencies:
+  '@file-viewer/docx@0.3.32': patches/@file-viewer__docx@0.3.32.patch
   illustrator-pgf@0.1.0: patches/illustrator-pgf@0.1.0.patch
   pdfjs-dist@5.4.624: patches/pdfjs-dist@5.4.624.patch

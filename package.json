@@ -6,6 +6,7 @@
   "packageManager": "pnpm@11.0.9",
   "description": "Browser-native, offline-first file preview components, renderers, presets, demos and documentation.",
   "scripts": {
+    "verify:docx-engine-compatibility": "node scripts/verify-docx-engine-compatibility.mjs",
     "dev": "pnpm --filter @flyfish-group/file-viewer-demo dev",
     "dev:components": "pnpm --filter @flyfish-group/file-viewer-component-demo dev",
     "site:dev": "pnpm --filter @flyfish-group/file-viewer-site dev",
