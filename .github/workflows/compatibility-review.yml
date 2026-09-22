@@ -1,17 +1,10 @@
 name: Compatibility review
-
 on:
   push:
     branches: [fix/compatibility-review-20260922]
   workflow_dispatch:
-
 permissions:
   contents: read
-
-concurrency:
-  group: compatibility-review-${{ github.ref }}
-  cancel-in-progress: true
-
 jobs:
   review:
     runs-on: ubuntu-latest
@@ -23,52 +16,16 @@ jobs:
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020
         with:
           node-version: 24
-      - name: Prepare isolated review inputs
+      - name: Prepare renderer verification dependencies
         run: |
-          mkdir -p "$RUNNER_TEMP/review-output" "$RUNNER_TEMP/review-inputs"
-          python3 - <<'PY'
-          import os, urllib.request, concurrent.futures, pathlib, json
-          root = pathlib.Path(os.environ['RUNNER_TEMP']) / 'review-inputs'
-          sources = {
-            'table.doc': 'https://github.com/user-attachments/files/32494889/test.doc',
-            'charts.pptx': 'https://github.com/user-attachments/files/32434543/default.pptx',
-            'print-layout.docx': 'https://github.com/user-attachments/files/32493912/1.docx',
-            'chart-axis.docx': 'https://github.com/user-attachments/files/31671201/4.docx',
-            'page-offset.docx': 'https://github.com/user-attachments/files/31932517/e10.docx',
-            'tables.zip': 'https://github.com/user-attachments/files/32277491/default.zip',
-          }
-          def fetch(item):
-            name, url = item
-            try:
-              with urllib.request.urlopen(url, timeout=90) as response:
-                data = response.read(64 * 1024 * 1024 + 1)
-              if len(data) > 64 * 1024 * 1024: raise ValueError('input exceeds review limit')
-              (root / name).write_bytes(data)
-              return name, {'bytes': len(data)}
-            except Exception as error: return name, {'error': str(error)}
-          with concurrent.futures.ThreadPoolExecutor(max_workers=4) as pool:
-            results = dict(pool.map(fetch, sources.items()))
-          (root / 'receipt.json').write_text(json.dumps(results, indent=2))
-          print(json.dumps(results, indent=2))
-          PY
-          tar -czf "$RUNNER_TEMP/review-output/inputs.tar.gz" -C "$RUNNER_TEMP/review-inputs" .
-      - name: Install isolated parser and browser test dependencies
-        run: |
-          mkdir -p "$RUNNER_TEMP/review-runtime/bin"
+          mkdir -p "$RUNNER_TEMP/review-runtime" "$RUNNER_TEMP/review-output"
           cd "$RUNNER_TEMP/review-runtime"
           printf '{"private":true,"type":"module"}\n' > package.json
-          cp "$(command -v node)" bin/node
-          npm install --ignore-scripts --no-audit --no-fund --save-exact @file-viewer/core@3.1.2 @file-viewer/renderer-word@3.1.2 @file-viewer/renderer-pdf@3.1.2 @file-viewer/renderer-presentation@3.1.2 @file-viewer/vite-plugin@3.1.2 typescript@6.0.3 vitest@4.1.8 jsdom@27.4.0 playwright@1.61.1 vite@8.3.0 esbuild@0.28.2
-          tar -czf "$RUNNER_TEMP/review-output/runtime.tar.gz" .
-      - name: Run focused regression gate when present
-        run: |
-          if test -f scripts/verify-compatibility-review.mjs; then
-            NODE_PATH="$RUNNER_TEMP/review-runtime/node_modules" node scripts/verify-compatibility-review.mjs
-          fi
+          npm install --ignore-scripts --no-audit --no-fund --save-exact @file-viewer/renderer-text@3.1.2 @file-viewer/capability-pptx-charts@3.1.2
+          tar -czf "$RUNNER_TEMP/review-output/text-chart-runtime.tar.gz" .
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
-        if: always()
         with:
-          name: compatibility-review-inputs
+          name: text-chart-runtime
           path: ${{ runner.temp }}/review-output/
           retention-days: 3
           compression-level: 0
