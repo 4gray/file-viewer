@@ -61,6 +61,7 @@ jobs:
           node scripts/verify-output-compatibility.mjs
       - name: Record verified scope without treating inventory as resolved
         run: |
+          set -euo pipefail
           python3 - <<'PY'
           import pathlib,json,os,hashlib,shutil
           root=pathlib.Path('docs/regressions/evidence/corpus-combined-20260922');root.mkdir(parents=True,exist_ok=True)
@@ -72,40 +73,8 @@ jobs:
             shutil.copyfile(src,root/(name+'.json'));checks[name]={'passed':count,'sha256':hashlib.sha256(src.read_bytes()).hexdigest()}
           receipt={'functionalHead':'231873131302dd51d83554b1ccd2b1221313c433','run':os.environ['GITHUB_RUN_ID'],'checkedCommit':os.environ['GITHUB_SHA'],'packageBuilds':['core','doc','pptx','word','pdf','text','spreadsheet'],'frozenLock':'lockfile-only validation passed; not a full workspace install/build','suites':checks,'extraPictureUnitTests':6,'fullCorpusFidelityAccepted':False}
           (root/'verification.json').write_text(json.dumps(receipt,indent=2)+'\n')
-          summary='''# 专项修复进度与验收范围
-
-已推送三批功能提交：`037c4402`（容器与图片关系）、`7e33ac49`（DOCX 图表与 Worker 集成）、`23187313`（旧 Excel 文本解码）。本页只记录已取得的证据；未完成的原样版式验收保持未完成。
-
-## 专项状态
-
-| 专项 | 已确认结果 | 尚未完成的验收 |
-| --- | --- | --- |
-| W01 Word 内容识别与旧格式 | C061 文本、C068 UTF-16 HTML 进入正确路径；OLE、OOXML、WordML 保持独立识别；C032 文字型 XLS 解码修复另见表格记录 | 11 MB 二进制 DOC 及原生 DOC 图片、表格的完整版式 |
-| W02 Word 版式、表格、印章 | 显式浮动坐标修复及生成式断言通过；C037/C042 原样页面、表格与图片加载复测 | 全部页脚、制表符、编号、文字方向、印章位置及逐页版式；C022 分页完成但约 51 秒，不能据此判为性能达标 |
-| W03 Word/Excel 图表 | C038 两图各 16 个稀疏标签；C012 的 13 个标签；C052 分类轴；真实 Worker 返回 parsed，不以回退代替成功 | Excel 原稿图表、所有窄容器与 DPR 组合、文档整体像素保真 |
-| P01 PPTX 图层与排版 | C044/C045 由缺页恢复为 2/3 页；12 份 PPTX 共 60 页无解析中断或损坏图片；修复 SVG 图片关系路径 | 各页母版/图层、掩码、透明度、长文本换行、目录符号和页码域逐元素对照 |
-| O01 OFD 文字、印章与页序 | 本轮未对整个专项作通过判定 | 原样 TextCode/DeltaX、中点字形、前导空格、CTM、页序及印章外观 |
-| F01 PDF 尺寸、图像与加载 | 既有旋转、混排纸张、JPEG2000/WASM 和拖拽专项回归继续检查 | 原样弹窗初始尺寸、全部扫描页清晰度、双滚动、Referer 服务端场景；iOS Safari 与企业 App WebView 必须同宿主验证 |
-| S01 表格交互与原始样式 | 旧文本容器解码、经典 Worker 和实际单元格检索已修复验证；既有异常维度、富文本回归通过 | C036 的列宽拖拽、切表和缩放保留、行高及原始图表样式 |
-| A01 压缩包文件名 | 子文件中纯文本 DOC 的路由修复 | 原 ZIP 的 GBK 文件名、特殊字符与子文件编码联动验收 |
-| T01 LRC 预览能力 | 保持能力候选，不把格式注册当作渲染修复 | 文本/时间轴模式范围及多时间标签、偏移、编码验收 |
-| R01 打印纸张与页边距 | 混合纸张、原始旋转、Canvas 显示盒、资源就绪等待的既有专项回归继续检查 | 原稿所有内容、真实打印驱动覆盖与目标宿主，不以生成式文档替代全部原稿验收 |
-
-## 清单边界
-
-资料整理包含 109 条记录，其中 47 条为原样复测候选、23 条缺原文件或完整复现、8 条为能力与交互选择、25 条已有同类能力或防护、5 条为不同依赖链或既有范围限制、1 条已有同字节回归。这些是分流数量，不是修复数量。存在跨格式子问题，专项引用数不能直接相加当作独立问题数。
-
-本次未批量关闭问题。没有将“可解析”“图片不报错”“回归通过”等同于整篇文档与桌面应用像素一致。仍缺证据的项目不能以新增合成用例自动关闭。
-
-## 组合验证
-
-结果与实际运行编号见 [verification.json](evidence/corpus-combined-20260922/verification.json)。五套专项同时在最终功能代码上重跑，构建七个相关包；冻结锁检查仅为 lockfile-only，不是全仓库发版验收。
-
-DOCX 修改通过仓库标准 pnpm 补丁接入五个入口并更新 Worker 缓存标识。必须按仓库的 patchedDependencies 安装；npm 上的旧版本未被替换，也没有发布新包。源码修复、原样中性校验和独立回退说明分别见容器、DOCX 引擎和表格修复记录。
-'''
-          pathlib.Path('docs/regressions/corpus-progress-20260922.md').write_text(summary)
           PY
-          git add -- docs/regressions/evidence/corpus-combined-20260922 docs/regressions/corpus-progress-20260922.md
+          git add -- docs/regressions/evidence/corpus-combined-20260922
           git rm -- .github/workflows/corpus-final-verification.yml
           git diff --cached --check
           git config user.name 'github-actions[bot]'
