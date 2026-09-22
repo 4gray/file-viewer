@@ -23,7 +23,7 @@ jobs:
           import fs from 'node:fs';
           import path from 'node:path';
           const dependencies = {};
-          for (const pkg of ['core','renderers/doc','renderers/word','renderers/pdf','renderers/text','renderers/pptx','renderers/ofd','renderers/spreadsheet','renderers/archive','renderers/eda','renderers/epub','renderers/email','renderers/media']) {
+          for (const pkg of ['core','renderers/doc','renderers/word','renderers/pdf','renderers/text','renderers/pptx','renderers/ofd','renderers/spreadsheet','renderers/archive','renderers/eda','renderers/ebook','renderers/email','renderers/media']) {
             const p = JSON.parse(fs.readFileSync(`packages/${pkg}/package.json`,'utf8'));
             for (const [name, version] of Object.entries({...p.dependencies,...p.devDependencies})) {
               dependencies[name] = version.startsWith('workspace:') ? version.slice(10) : version.replace(/^[~^]/,'');
@@ -40,6 +40,7 @@ jobs:
           git ls-tree -r HEAD > "$RUNNER_TEMP/corpus-artifact/tree.txt"
           git rev-parse HEAD > "$RUNNER_TEMP/corpus-artifact/head.txt"
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        if: always()
         with:
           name: corpus-runtime
           path: ${{ runner.temp }}/corpus-artifact/
