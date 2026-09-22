@@ -1,0 +1,46 @@
+name: Compatibility follow-up
+on:
+  push:
+    branches: [fix/compatibility-review-20260922]
+    paths: ['.github/workflows/compatibility-followup.yml']
+permissions:
+  contents: read
+jobs:
+  prepare:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020
+        with:
+          node-version: 24
+      - name: Prepare bounded reproduction inputs
+        run: |
+          mkdir -p "$RUNNER_TEMP/review/inputs" "$RUNNER_TEMP/output"
+          python3 - <<'PY'
+          import os, pathlib, urllib.request
+          root = pathlib.Path(os.environ['RUNNER_TEMP']) / 'review/inputs'
+          urls = {
+            'word-images.docx': 'https://github.com/user-attachments/files/32331964/2.docx',
+            'altchunk.docx': 'https://github.com/user-attachments/files/32318480/altchunk.docx',
+            'hyperlinks.docx': 'https://github.com/user-attachments/files/32318472/hyperlink-scheme.docx',
+            'mixed-pages.pdf': 'https://github.com/user-attachments/files/30925222/default.pdf',
+          }
+          for name, url in urls.items():
+            with urllib.request.urlopen(url, timeout=45) as response:
+              data = response.read(16 * 1024 * 1024 + 1)
+            assert len(data) <= 16 * 1024 * 1024
+            (root / name).write_bytes(data)
+            print(name, len(data), data[:8].hex())
+          PY
+      - name: Install real build dependencies
+        run: |
+          cd "$RUNNER_TEMP/review"
+          printf '{"private":true,"type":"module"}\n' > package.json
+          npm install --ignore-scripts --no-audit --no-fund typescript@6.0.3 pdfjs-dist@5.4.624 pdf-lib@1.17.1 rtf.js@3.0.9 playwright@1.61.1
+          tar -czf "$RUNNER_TEMP/output/followup-inputs.tar.gz" .
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: followup-inputs
+          path: ${{ runner.temp }}/output/
+          retention-days: 2
+          compression-level: 0
