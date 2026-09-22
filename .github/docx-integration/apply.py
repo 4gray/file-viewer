@@ -53,7 +53,7 @@ elif sys.argv[1] == 'runtime':
     for name,record in obj['deltas'].items():
         assert sha(old[name]) == record['base_sha256']
         new[name] = bsdiff(old[name],base64.b64decode(record['patch'],validate=True))
-        assert len(new[name]) == record['result_size'] and sha(new[name]) == record['result_sha256']
+        assert sha(new[name]) == record['result_sha256']
     prelude = subprocess.check_output(['node','-e',"process.stdout.write(require('./.github/docx-integration/worker-dom.cjs').buildWorkerDomPrelude())"])
     new['docx-preview.worker.js'] = prelude + new['docx-preview.worker.js']
     pins = json.loads((ROOT/'patches/docx-engine-compatibility.json').read_text()); parts = []
