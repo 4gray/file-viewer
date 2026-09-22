@@ -62,6 +62,7 @@ jobs:
           cd "$RUNNER_TEMP/review-runtime"
           npm install --ignore-scripts --no-audit --no-fund
           ln -s "$RUNNER_TEMP/review-runtime/node_modules" "$GITHUB_WORKSPACE/node_modules"
+          ln -s "$RUNNER_TEMP/review-runtime/node_modules" "$GITHUB_WORKSPACE/packages/renderers/pdf/node_modules"
           cp package-lock.json "$GITHUB_WORKSPACE/output/compatibility-review/verification-package-lock.json"
       - name: Build and type-check owning packages
         run: |
