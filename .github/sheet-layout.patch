@@ -49,7 +49,7 @@ index 6157439..22a5313 100644
        renderTable(ensureTable(), cached.columns, cached.rows);
        syncImageViewport();
        scheduleStableFirstPaintRefresh();
- diff --git a/packages/renderers/spreadsheet/src/spreadsheet/state.ts b/packages/renderers/spreadsheet/src/spreadsheet/state.ts
+diff --git a/packages/renderers/spreadsheet/src/spreadsheet/state.ts b/packages/renderers/spreadsheet/src/spreadsheet/state.ts
 index 3aa5acb..8083b5a 100644
 --- a/packages/renderers/spreadsheet/src/spreadsheet/state.ts
 +++ b/packages/renderers/spreadsheet/src/spreadsheet/state.ts
