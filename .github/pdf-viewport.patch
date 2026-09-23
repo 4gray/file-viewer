@@ -1,0 +1,84 @@
+diff --git a/packages/renderers/pdf/src/pdf.ts b/packages/renderers/pdf/src/pdf.ts
+index 4e1d190..1c3fb77 100644
+--- a/packages/renderers/pdf/src/pdf.ts
++++ b/packages/renderers/pdf/src/pdf.ts
+@@ -1321,6 +1321,7 @@ export default async function renderPdf(
+     }
+     autoFitWidth = false;
+     activeFitRequest = null;
++    pendingFitRequest = null;
+   };
+ 
+   const getPdfPageElement = (pageNumber: number) => {
+@@ -1618,6 +1619,10 @@ export default async function renderPdf(
+     return getPageSizeAtScaleOne(pdfViewer).width;
+   };
+ 
++  // A detached/hidden dialog has no document viewport yet. A window-sized
++  // fallback would consume an initial-only fit before that dialog is shown.
++  const hasMeasurableViewport = () => container.clientWidth > 0 && container.clientHeight > 0;
++
+   const getFitWidthScale = (pdfViewer: PDFViewer) => {
+     const pageWidth = getPageWidthAtScaleOne(pdfViewer);
+     const containerWidth = container.clientWidth || targetWindow.innerWidth;
+@@ -1639,6 +1644,9 @@ export default async function renderPdf(
+     userScrollIntentUntil = 0;
+     suppressProgrammaticScrollEvents();
+     autoFitWidth = true;
++    if (!hasMeasurableViewport()) {
++      return;
++    }
+     setScale(getFitWidthScale(pdfContext.viewer), 'zoom-reset', source, notifyViewState);
+     void waitForPaint(targetWindow).then(() => {
+       pdfContext.viewer?.update();
+@@ -1649,8 +1657,8 @@ export default async function renderPdf(
+     cancelPendingUserZoomRestore();
+     userScrollIntentUntil = 0;
+     activeFitRequest = { ...request };
+-    if (!pdfContext.viewer || loadStatus !== 'ready') {
+-      pendingFitRequest = request;
++    if (!pdfContext.viewer || loadStatus !== 'ready' || !hasMeasurableViewport()) {
++      pendingFitRequest = { ...request };
+       return {
+         applied: false,
+         mode: request.mode,
+@@ -1661,6 +1669,7 @@ export default async function renderPdf(
+       };
+     }
+ 
++    pendingFitRequest = null;
+     const pageSize = getPageSizeAtScaleOne(pdfContext.viewer);
+     const mode = request.mode === 'auto' ? 'width' : request.mode;
+     const fitViewport = resolvePdfFitViewportSize({
+@@ -1719,10 +1728,10 @@ export default async function renderPdf(
+   };
+ 
+   const scheduleFitAfterResize = () => {
+-    if (!pdfContext.viewer) {
++    if (destroyed || !pdfContext.viewer || !hasMeasurableViewport()) {
+       return;
+     }
+-    if (activeFitRequest?.resize === 'initial') {
++    if (activeFitRequest?.resize === 'initial' && !pendingFitRequest) {
+       return;
+     }
+     if (!activeFitRequest && !autoFitWidth) {
+@@ -1730,6 +1739,10 @@ export default async function renderPdf(
+     }
+     targetWindow.cancelAnimationFrame(fitFrame);
+     fitFrame = targetWindow.requestAnimationFrame(() => {
++      fitFrame = 0;
++      if (destroyed || !hasMeasurableViewport()) {
++        return;
++      }
+       if (activeFitRequest) {
+         void applyPdfFit({ ...activeFitRequest, source: 'viewer' });
+         return;
+@@ -2445,6 +2458,7 @@ export default async function renderPdf(
+   zoomInButton.addEventListener('click', () => zoomIn('user'));
+   scaleButton.addEventListener('click', () => {
+     activeFitRequest = null;
++    pendingFitRequest = null;
+     fitToWidth('user');
+   });
+   rotateLeftButton.addEventListener('click', () => applyRotation(currentRotation - 90, 'rotate-left', 'user'));
