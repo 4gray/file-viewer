@@ -1,3 +1,4 @@
+import { getDrawingTextRuns, getFirstSlideNumber, getPictureEffects } from './drawing-semantics.js';
 import { getEmbeddedPictureCandidates } from './picture-resource.js';
 import { createBuiltinDrawingMlTableStyle } from './table-styles.js';
 import { extractChartData } from './chart-data.js';
@@ -38,6 +39,7 @@ let isIE11 = false;
 //var slideLayoutClrOvride = "";
 
 let defaultTextStyle = null;
+let firstSlideNumber = 1;
 
 let chartID = 0;
 
@@ -351,6 +353,7 @@ export async function getSlideSizeAndSetDefaultTextStyle(zip) {
   console.log("Presentation size type: ", sldSzType)
 
   defaultTextStyle = getTextByPathList(content, [ "p:presentation", "p:defaultTextStyle" ]) || {};
+  firstSlideNumber = getFirstSlideNumber(getTextByPathList(content, [ "p:presentation", "attrs", "firstSlideNum" ]));
 
   const incSlide = settings.incSlide || {};
   slideWidth = sldSzWidth * slideFactor + toFiniteNumber(incSlide.width, 0)|0;// * scaleX;//parseInt(sldSzAttrs["cx"]) * 96 / 914400;
@@ -485,7 +488,8 @@ export async function processSingleSlide(zip, sldFileName, index, slideSize) {
     "diagramResObj": diagramResObj,
     "defaultTextStyle": defaultTextStyle,
     "slideIndex": index,
-    "slideNumber": index + 1
+    "slideNumber": index + 1,
+    "displaySlideNumber": firstSlideNumber + index
   };
   var bgResult = "";
   if (processFullTheme === true) {
@@ -865,14 +869,6 @@ function getBlipCropStyles(blipFillNode) {
       "%;top:" + imageTop + "%;",
     svg: { x: imageLeft, y: imageTop, width: imageWidth, height: imageHeight }
   };
-}
-
-function getBlipEffectStyles(blipFillNode) {
-  var duotone = getTextByPathList(blipFillNode, ["a:blip", "a:duotone"]);
-  if (duotone !== undefined) {
-    return "filter:grayscale(1);";
-  }
-  return "";
 }
 
 function getPicturePresetClipStyles(picNode) {
@@ -8675,7 +8671,7 @@ async function processPicNode(node, warpObj, source, sType, groupContext) {
   }
   ///////////////////////////////////////Amir//////////////////////////////
   var rotate = 0;
-  var rotateNode = getTextByPathList(node, ["p:spPr", "a:xfrm", "attrs", "rot"]);
+  var rotateNode = getTextByPathList(xfrmNode, ["attrs", "rot"]);
   if (rotateNode !== undefined) {
     rotate = angleToDegrees(rotateNode);
   }
@@ -8761,7 +8757,10 @@ async function processPicNode(node, warpObj, source, sType, groupContext) {
     return "";
   }
   var cropStyles = getBlipCropStyles(node["p:blipFill"]);
-  var blipEffectStyles = getBlipEffectStyles(node["p:blipFill"]);
+  var pictureEffects = getPictureEffects(blip, mediaIdPrefix + "-" + source + "-alpha");
+  var blipEffectStyles = pictureEffects.style;
+  var pictureFlip = (getTransformBool(getTextByPathList(xfrmNode, ["attrs", "flipH"])) ? " scaleX(-1)" : "") +
+    (getTransformBool(getTextByPathList(xfrmNode, ["attrs", "flipV"])) ? " scaleY(-1)" : "");
   var customGeometryPaths = [];
   var customGeometrySize = { width: 100, height: 100 };
   var customGeometryNode = getTextByPathList(node, ["p:spPr", "a:custGeom"]);
@@ -8778,12 +8777,13 @@ async function processPicNode(node, warpObj, source, sType, groupContext) {
     ((mediaProcess && audioPlayerFlag) ? getPosition(audioObjc, node, undefined, undefined, sType, groupContext) : getPosition(xfrmNode, node, undefined, undefined, sType, groupContext)) +
     ((mediaProcess && audioPlayerFlag) ? getSize(audioObjc, undefined, undefined, groupContext) : getSize(xfrmNode, undefined, undefined, groupContext)) +
     " z-index: " + order + ";" +
-    "transform: rotate(" + rotate + "deg);" +
+    "transform: rotate(" + rotate + "deg)" + pictureFlip + ";" +
     (((vdoNode === undefined && audioNode === undefined) || !mediaProcess || !mediaSupportFlag) ? cropStyles.container + getPicturePresetClipStyles(node) : "") +
     "'>";
   if ((vdoNode === undefined && audioNode === undefined) || !mediaProcess || !mediaSupportFlag) {
+    rtrnData += pictureEffects.definitions;
     if (customGeometryPaths.length > 0) {
-      var picClipId = "pptx_pic_clip_" + ((warpObj && warpObj.slideNumber) || "0") + "_" +
+      var picClipId = "pptx_pic_clip_" + source + "_" + ((warpObj && warpObj.slideNumber) || "0") + "_" +
         (getTextByPathList(node, ["p:nvPicPr", "p:cNvPr", "attrs", "id"]) || order || customGeometryPaths.length);
       var svgImageX = customGeometrySize.width * cropStyles.svg.x / 100;
       var svgImageY = customGeometrySize.height * cropStyles.svg.y / 100;
@@ -8883,7 +8883,6 @@ function processSpPrNode(node, warpObj) {
   // TODO:
 }
 
-var is_first_br = false;
 async function genTextBody(textBodyNode, spNode, slideLayoutSpNode, slideMasterSpNode, type, idx, warpObj, tbl_col_width, groupContext) {
   var text = "";
   var slideMasterTextStyles = warpObj["slideMasterTextStyles"];
@@ -8906,32 +8905,8 @@ async function genTextBody(textBodyNode, spNode, slideLayoutSpNode, slideMasterS
 
   for (var i = 0; i < apNode.length; i++) {
     var pNode = apNode[i];
-    var rNode = pNode["a:r"];
-    var fldNode = pNode["a:fld"];
-    var brNode = pNode["a:br"];
-    if (rNode !== undefined) {
-      rNode = (rNode.constructor === Array) ? rNode : [ rNode ];
-    }
-    if (rNode !== undefined && fldNode !== undefined) {
-      fldNode = (fldNode.constructor === Array) ? fldNode : [ fldNode ];
-      rNode = rNode.concat(fldNode)
-    }
-    if (rNode !== undefined && brNode !== undefined) {
-      is_first_br = true;
-      brNode = (brNode.constructor === Array) ? brNode : [ brNode ];
-      brNode.forEach(function (item, indx) {
-        item.type = "br";
-      });
-      if (brNode.length > 1) {
-        brNode.shift();
-      }
-      rNode = rNode.concat(brNode)
-      //console.log("single a:p  rNode:", rNode, "brNode:", brNode )
-      rNode.sort(function (a, b) {
-        return a.attrs.order - b.attrs.order;
-      });
-      //console.log("sorted rNode:",rNode)
-    }
+    var rNode = getDrawingTextRuns(pNode);
+    if (rNode.length === 0) rNode = undefined;
     //rtlStr = "";//"dir='"+isRTL+"'";
     var styleText = "";
     var marginsVer = getVerticalMargins(pNode, textBodyNode, type, idx, warpObj);
@@ -9614,6 +9589,7 @@ function getLayoutAndMasterNode(node, idx, type, warpObj) {
 }
 async function genSpanElement(node, rIndex, pNode, textBodyNode, pFontStyle, slideLayoutSpNode, idx, type, rNodeLength, warpObj, isBullate) {
   //https://codepen.io/imdunn/pen/GRgwaye ?
+  if (node.type === "br") return "<span class='line-break-br'></span>";
   var text_style = "";
   var lstStyle = textBodyNode["a:lstStyle"];
   var slideMasterTextStyles = warpObj["slideMasterTextStyles"];
@@ -9621,33 +9597,13 @@ async function genSpanElement(node, rIndex, pNode, textBodyNode, pFontStyle, sli
   var text = node["a:t"];
   var fieldType = getTextByPathList(node, [ "a:fld", "attrs", "type" ]);
   if (typeof fieldType === "string" && fieldType.toLowerCase() === "slidenum") {
-    text = String((warpObj && warpObj.slideNumber) || "");
+    text = String(warpObj?.displaySlideNumber ?? warpObj?.slideNumber ?? "");
   }
   //var text_count = text.length;
 
-  var openElemnt = "<span";//"<bdi";
+  var openElemnt = "<span" + (typeof fieldType === "string" && fieldType.toLowerCase() === "slidenum" ? " data-pptx-field='slidenum'" : "");//"<bdi";
   var closeElemnt = "</span>";// "</bdi>";
   var styleText = "";
-  if (text === undefined && node["type"] !== undefined) {
-    if (is_first_br) {
-      //openElemnt = "<br";
-      //closeElemnt = "";
-      //return "<br style='font-size: initial'>"
-      is_first_br = false;
-      return "<span class='line-break-br' ></span>";
-    } else {
-      // styleText += "display: block;";
-      // openElemnt = "<sapn";
-      // closeElemnt = "</sapn>";
-    }
-
-    styleText += "display: block;";
-    //openElemnt = "<sapn";
-    //closeElemnt = "</sapn>";
-  } else {
-
-    is_first_br = true;
-  }
   if (typeof text !== 'string') {
     text = getTextByPathList(node, [ "a:fld", "a:t" ]);
     if (typeof text !== 'string') {
@@ -12097,6 +12053,7 @@ async function getBackground(warpObj, slideSize, index) {
   var result = "<div class='slide-background slide-background-" + index + "' style='position:absolute;top:0;left:0;overflow:hidden;z-index:0;width:" + slideSize.width + "px; height:" + slideSize.height + "px;" + bgColor + "'>"
 
   if (nodesSldMaster !== undefined && shouldShowMasterSp) {
+    result += "<div class='pptx-master-layer' style='position:absolute;inset:0;z-index:0;'>";
     for (var nodeKey in nodesSldMaster) {
       if (nodesSldMaster[nodeKey].constructor === Array) {
         for (var i = 0; i < nodesSldMaster[nodeKey].length; i++) {
@@ -12112,8 +12069,10 @@ async function getBackground(warpObj, slideSize, index) {
         //}
       }
     }
+    result += "</div>";
   }
   if (nodesSldLayout !== undefined) {
+    result += "<div class='pptx-layout-layer' style='position:absolute;inset:0;z-index:1;'>";
     for (var nodeKey in nodesSldLayout) {
       if (nodesSldLayout[nodeKey].constructor === Array) {
         for (var i = 0; i < nodesSldLayout[nodeKey].length; i++) {
@@ -12129,6 +12088,7 @@ async function getBackground(warpObj, slideSize, index) {
         }
       }
     }
+    result += "</div>";
   }
 
   return result + "</div>";
