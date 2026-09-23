@@ -82,7 +82,8 @@ try {
  });
  await check('Default worker cache key identifies the patched distribution',async()=>{
   const url=await page.evaluate(()=>docxCompatibility.resolveFileViewerDocxWorkerUrl(null,'https://viewer.invalid/app/'));
-  assert.match(url,/file-viewer-docx=0\.3\.32%2Bcompat\.20260922/);
+  const pin=JSON.parse(await readFile(path.join(root,'patches/docx-engine-compatibility.json'),'utf8'));
+  assert.equal(new URL(url).searchParams.get('file-viewer-docx'),pin.runtimeVersion||'0.3.32+compat.20260922');
  });
  await check('CommonJS bundle retains browser chart parity',async()=>{
   await page.evaluate(()=>{handle.unmount();});
