@@ -35,6 +35,12 @@ jobs:
             assert not p.exists() and not p.is_absolute() and '..' not in p.parts
             assert name.startswith(('scripts/','test/docx-paragraph-flow/','docs/regressions/'))
             p.parent.mkdir(parents=True,exist_ok=True);p.write_text(text)
+          p=pathlib.Path('scripts/verify-docx-paragraph-flow.mjs');s=p.read_text()
+          before="platform:'browser',logLevel:'warning',plugins:"
+          after="platform:'browser',logLevel:'warning',alias:{'@file-viewer/docx':path.join(engine,'dist/docx-preview.mjs')},plugins:"
+          assert s.count(before)==1
+          p.write_text(s.replace(before,after))
+          assert hashlib.sha256(p.read_bytes()).hexdigest()=='f971830ed827f4aa34da09db52ddad4dbd8fe776b013fe969fe8e405bbc8ff9e'
           subprocess.run(['git','add','--',*files],check=True)
           PY
       - name: Install selected packages from the actual frozen workspace lock
