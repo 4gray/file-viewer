@@ -45,22 +45,39 @@ export const findPptxChartTarget = (root: ParentNode, chartID: string) => {
     .find(element => element.id === chartID) || null;
 };
 
-const getNumericBulletText = (type: string, index: number) => {
-  switch (type) {
-    case 'arabicPeriod':
-      return `${index}. `;
-    case 'arabicParenR':
-      return `${index}) `;
-    case 'alphaLcParenR':
-      return `${String.fromCharCode(index + 96)}) `;
-    case 'alphaLcPeriod':
-      return `${String.fromCharCode(index + 96)}. `;
-    case 'alphaUcParenR':
-      return `${String.fromCharCode(index + 64)}) `;
-    case 'alphaUcPeriod':
-      return `${String.fromCharCode(index + 64)}. `;
-    default:
-      return String(index);
+/** DrawingML alphabetic and Roman numbering, without losing suffix punctuation. */
+export const getNumericBulletText = (type: string, index: number) => {
+  if (!Number.isInteger(index) || index < 1 || index > 32767) {
+    return String(index);
+  }
+  const match = /^(arabic|alphaLc|alphaUc|romanLc|romanUc)(Period|ParenR|ParenBoth|Plain)$/.exec(type);
+  if (!match) {
+    return String(index);
+  }
+  let label = String(index);
+  if (match[1].startsWith('alpha')) {
+    label = '';
+    for (let remaining = index; remaining > 0; remaining = Math.floor((remaining - 1) / 26)) {
+      label = String.fromCharCode(65 + (remaining - 1) % 26) + label;
+    }
+  } else if (match[1].startsWith('roman')) {
+    label = '';
+    let remaining = index;
+    const digits: readonly (readonly [number, string])[] = [
+      [1000, 'M'], [900, 'CM'], [500, 'D'], [400, 'CD'], [100, 'C'], [90, 'XC'],
+      [50, 'L'], [40, 'XL'], [10, 'X'], [9, 'IX'], [5, 'V'], [4, 'IV'], [1, 'I'],
+    ];
+    for (const [value, symbol] of digits) {
+      label += symbol.repeat(Math.floor(remaining / value));
+      remaining %= value;
+    }
+  }
+  if (match[1].endsWith('Lc')) label = label.toLowerCase();
+  switch (match[2]) {
+    case 'Period': return `${label}. `;
+    case 'ParenR': return `${label}) `;
+    case 'ParenBoth': return `(${label}) `;
+    default: return label;
   }
 };
 
@@ -78,7 +95,10 @@ const restoreNumericBullets = (root: ParentNode) => {
       const type = String(bullet.dataset.bulltname || 'arabicPeriod');
       const level = String(bullet.dataset.bulltlvl || '0');
       const key = `${level}:${type}`;
-      const nextIndex = (counters.get(key) || 0) + 1;
+      const startAt = Number(bullet.dataset.bulltstartat);
+      const nextIndex = Number.isInteger(startAt) && startAt >= 1 && startAt <= 32767
+        ? startAt
+        : (counters.get(key) || 0) + 1;
       counters.set(key, nextIndex);
       bullet.textContent = getNumericBulletText(type, nextIndex);
     }

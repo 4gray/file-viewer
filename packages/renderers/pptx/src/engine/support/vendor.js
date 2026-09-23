@@ -8007,7 +8007,9 @@ async function genShape(node, pNode, slideLayoutSpNode, slideMasterSpNode, id, n
 
     // TextBody
     if (node["p:txBody"] !== undefined && (isUserDrawnBg === undefined || isUserDrawnBg === true)) {
-      if (type != "diagram" && type != "textBox") {
+      // Geometry does not erase a placeholder's text-style inheritance.
+      if (type != "diagram" && type != "textBox" &&
+          getTextByPathList(node, ["p:nvSpPr", "p:nvPr", "p:ph"]) === undefined) {
         type = "shape";
       }
       result += await genTextBody(node["p:txBody"], node, slideLayoutSpNode, slideMasterSpNode, type, idx, warpObj, undefined, groupContext); //type='shape'
@@ -8301,7 +8303,9 @@ async function genShape(node, pNode, slideLayoutSpNode, slideMasterSpNode, id, n
 
     // TextBody
     if (node["p:txBody"] !== undefined && (isUserDrawnBg === undefined || isUserDrawnBg === true)) {
-      if (type != "diagram" && type != "textBox") {
+      // Geometry does not erase a placeholder's text-style inheritance.
+      if (type != "diagram" && type != "textBox" &&
+          getTextByPathList(node, ["p:nvSpPr", "p:nvPr", "p:ph"]) === undefined) {
         type = "shape";
       }
       result += await genTextBody(node["p:txBody"], node, slideLayoutSpNode, slideMasterSpNode, type, idx, warpObj, undefined, groupContext); //type=shape
@@ -9094,6 +9098,7 @@ async function genBuChar(node, i, spNode, textBodyNode, pFontStyle, idx, type, w
 
   var buChar = getTextByPathList(pPrNode, [ "a:buChar", "attrs", "char" ]);
   var buNum = getTextByPathList(pPrNode, [ "a:buAutoNum", "attrs", "type" ]);
+  var buStartAt = getTextByPathList(pPrNode, [ "a:buAutoNum", "attrs", "startAt" ]);
   var buPic = getTextByPathList(pPrNode, [ "a:buBlip" ]);
   if (buChar !== undefined) {
     buType = "TYPE_BULLET";
@@ -9133,6 +9138,7 @@ async function genBuChar(node, i, spNode, textBodyNode, pFontStyle, idx, type, w
       buType = "TYPE_NONE";
       buChar = getTextByPathList(lstStyle, [ lvlStr, "a:buChar", "attrs", "char" ]);
       buNum = getTextByPathList(lstStyle, [ lvlStr, "a:buAutoNum", "attrs", "type" ]);
+      buStartAt = getTextByPathList(lstStyle, [ lvlStr, "a:buAutoNum", "attrs", "startAt" ]);
       buPic = getTextByPathList(lstStyle, [ lvlStr, "a:buBlip" ]);
       if (buChar !== undefined) {
         buType = "TYPE_BULLET";
@@ -9158,6 +9164,7 @@ async function genBuChar(node, i, spNode, textBodyNode, pFontStyle, idx, type, w
       buType = "TYPE_NONE";
       buChar = getTextByPathList(pPrNodeLaout, [ "a:buChar", "attrs", "char" ]);
       buNum = getTextByPathList(pPrNodeLaout, [ "a:buAutoNum", "attrs", "type" ]);
+      buStartAt = getTextByPathList(pPrNodeLaout, [ "a:buAutoNum", "attrs", "startAt" ]);
       buPic = getTextByPathList(pPrNodeLaout, [ "a:buBlip" ]);
       if (buChar !== undefined) {
         buType = "TYPE_BULLET";
@@ -9180,6 +9187,7 @@ async function genBuChar(node, i, spNode, textBodyNode, pFontStyle, idx, type, w
         buType = "TYPE_NONE";
         buChar = getTextByPathList(pPrNodeMaster, [ "a:buChar", "attrs", "char" ]);
         buNum = getTextByPathList(pPrNodeMaster, [ "a:buAutoNum", "attrs", "type" ]);
+        buStartAt = getTextByPathList(pPrNodeMaster, [ "a:buAutoNum", "attrs", "startAt" ]);
         buPic = getTextByPathList(pPrNodeMaster, [ "a:buBlip" ]);
         if (buChar !== undefined) {
           buType = "TYPE_BULLET";
@@ -9460,7 +9468,11 @@ async function genBuChar(node, i, spNode, textBodyNode, pFontStyle, idx, type, w
     } else {
       bulvar += "display: inline-block;white-space: nowrap ;direction:ltr;"; //float: left;
     }
-    bulvar += "' data-bulltname = '" + buNum + "' data-bulltlvl = '" + lvl + "' class='numeric-bullet-style'></div>";
+    var numericStartAt = Number(buStartAt);
+    var restartAttribute = Number.isInteger(numericStartAt) && numericStartAt >= 1 && numericStartAt <= 32767
+      ? " data-bulltstartat='" + numericStartAt + "'" : "";
+    bulvar += "' data-bulltname='" + escapeHtml(buNum) + "' data-bulltlvl='" + lvl + "'" +
+      restartAttribute + " class='numeric-bullet-style'></div>";
     // } else {
     //     marginLeft = 328600 * slideFactor * lvl;
     //     bulvar = "<div style='margin-left: " + marginLeft + "px;";
@@ -10793,17 +10805,11 @@ function getSize(slideSpNode, slideLayoutSpNode, slideMasterSpNode, groupContext
 
 }
 function getVerticalMargins(pNode, textBodyNode, type, idx, warpObj) {
-  //margin-top ;
-  //a:pPr => a:spcBef => a:spcPts (/100) | a:spcPct (/?)
-  //margin-bottom
-  //a:pPr => a:spcAft => a:spcPts (/100) | a:spcPct (/?)
-  //+
-  //a:pPr =>a:lnSpc => a:spcPts (/?) | a:spcPct (/?)
-  //console.log("getVerticalMargins ", pNode, type,idx, warpObj)
-  //var lstStyle = textBodyNode["a:lstStyle"];
   var lvl = 1
   var spcBefNode = getTextByPathList(pNode, ["a:pPr", "a:spcBef", "a:spcPts", "attrs", "val"]);
   var spcAftNode = getTextByPathList(pNode, ["a:pPr", "a:spcAft", "a:spcPts", "attrs", "val"]);
+  var spcBefPctNode = getTextByPathList(pNode, ["a:pPr", "a:spcBef", "a:spcPct", "attrs", "val"]);
+  var spcAftPctNode = getTextByPathList(pNode, ["a:pPr", "a:spcAft", "a:spcPct", "attrs", "val"]);
   var lnSpcNode = getTextByPathList(pNode, ["a:pPr", "a:lnSpc", "a:spcPct", "attrs", "val"]);
   var lnSpcNodeType = "Pct";
   if (lnSpcNode === undefined) {
@@ -10816,80 +10822,49 @@ function getVerticalMargins(pNode, textBodyNode, type, idx, warpObj) {
   if (lvlNode !== undefined) {
     lvl = parseInt(lvlNode) + 1;
   }
+  // Resolve percentage spacing against the largest effective run, preserving fractional pixels.
   var fontSize;
-  if (getTextByPathList(pNode, ["a:r"]) !== undefined) {
-    var fontSizeStr = getFontSize(pNode["a:r"], textBodyNode,undefined, lvl, type, warpObj);
-    if (fontSizeStr != "inherit") {
-      fontSize = parseInt(fontSizeStr, "px"); //pt
-    }
+  var runs = asArray(pNode["a:r"]).concat(asArray(pNode["a:fld"]));
+  if (runs.length === 0) runs = [pNode];
+  runs.forEach(function (run) {
+    var size = parseFloat(getFontSize(run, textBodyNode, undefined, lvl, type, warpObj));
+    if (Number.isFinite(size) && size > 0) fontSize = Math.max(fontSize || 0, size);
+  });
+  var paragraphListStyle = getTextByPathList(textBodyNode, ["a:lstStyle", "a:lvl" + lvl + "pPr"]);
+  if (spcBefNode === undefined && spcBefPctNode === undefined) {
+    spcBefNode = getTextByPathList(paragraphListStyle, ["a:spcBef", "a:spcPts", "attrs", "val"]);
+    spcBefPctNode = getTextByPathList(paragraphListStyle, ["a:spcBef", "a:spcPct", "attrs", "val"]);
   }
-  //var spcBef = "";
-  //console.log("getVerticalMargins 1", fontSizeStr, fontSize, lnSpcNode, parseInt(lnSpcNode) / 100000, spcBefNode, spcAftNode)
-  // if(spcBefNode !== undefined){
-  //     spcBef = "margin-top:" + parseInt(spcBefNode)/100 + "pt;"
-  // }
-  // else{
-  //    //i did not found case with percentage
-  //     spcBefNode = getTextByPathList(pNode, ["a:pPr", "a:spcBef", "a:spcPct","attrs","val"]);
-  //     if(spcBefNode !== undefined){
-  //         spcBef = "margin-top:" + parseInt(spcBefNode)/100 + "%;"
-  //     }
-  // }
-  //var spcAft = "";
-  // if(spcAftNode !== undefined){
-  //     spcAft = "margin-bottom:" + parseInt(spcAftNode)/100 + "pt;"
-  // }
-  // else{
-  //    //i did not found case with percentage
-  //     spcAftNode = getTextByPathList(pNode, ["a:pPr", "a:spcAft", "a:spcPct","attrs","val"]);
-  //     if(spcAftNode !== undefined){
-  //         spcBef = "margin-bottom:" + parseInt(spcAftNode)/100 + "%;"
-  //     }
-  // }
-  // if(spcAftNode !== undefined){
-  //     //check in layout and then in master
-  // }
+  if (spcAftNode === undefined && spcAftPctNode === undefined) {
+    spcAftNode = getTextByPathList(paragraphListStyle, ["a:spcAft", "a:spcPts", "attrs", "val"]);
+    spcAftPctNode = getTextByPathList(paragraphListStyle, ["a:spcAft", "a:spcPct", "attrs", "val"]);
+  }
   var isInLayoutOrMaster = true;
   if(type == "shape" || type == "textBox"){
     isInLayoutOrMaster = false;
   }
   if (isInLayoutOrMaster && (spcBefNode === undefined || spcAftNode === undefined || lnSpcNode === undefined)) {
-    //check in layout
     if (idx !== undefined) {
-      var laypPrNode = getTextByPathList(warpObj, ["slideLayoutTables", "idxTable", idx, "p:txBody", "a:p", (lvl - 1), "a:pPr"]);
-
-      if (spcBefNode === undefined) {
-        spcBefNode = getTextByPathList(laypPrNode, ["a:spcBef", "a:spcPts", "attrs", "val"]);
-        // if(spcBefNode !== undefined){
-        //     spcBef = "margin-top:" + parseInt(spcBefNode)/100 + "pt;"
-        // }
-        // else{
-        //    //i did not found case with percentage
-        //     spcBefNode = getTextByPathList(laypPrNode, ["a:spcBef", "a:spcPct","attrs","val"]);
-        //     if(spcBefNode !== undefined){
-        //         spcBef = "margin-top:" + parseInt(spcBefNode)/100 + "%;"
-        //     }
-        // }
+      var layoutBody = getTextByPathList(warpObj, ["slideLayoutTables", "idxTable", idx, "p:txBody"]);
+      var laypPrNode = getTextByPathList(layoutBody, ["a:lstStyle", "a:lvl" + lvl + "pPr"]);
+      if (laypPrNode === undefined) {
+        laypPrNode = getTextByPathList(asArray(getTextByPathList(layoutBody, ["a:p"]))[lvl - 1], ["a:pPr"]);
       }
 
-      if (spcAftNode === undefined) {
+      if (spcBefNode === undefined && spcBefPctNode === undefined) {
+        spcBefNode = getTextByPathList(laypPrNode, ["a:spcBef", "a:spcPts", "attrs", "val"]);
+        spcBefPctNode = getTextByPathList(laypPrNode, ["a:spcBef", "a:spcPct", "attrs", "val"]);
+      }
+
+      if (spcAftNode === undefined && spcAftPctNode === undefined) {
         spcAftNode = getTextByPathList(laypPrNode, ["a:spcAft", "a:spcPts", "attrs", "val"]);
-        // if(spcAftNode !== undefined){
-        //     spcAft = "margin-bottom:" + parseInt(spcAftNode)/100 + "pt;"
-        // }
-        // else{
-        //    //i did not found case with percentage
-        //     spcAftNode = getTextByPathList(laypPrNode, ["a:spcAft", "a:spcPct","attrs","val"]);
-        //     if(spcAftNode !== undefined){
-        //         spcBef = "margin-bottom:" + parseInt(spcAftNode)/100 + "%;"
-        //     }
-        // }
+        spcAftPctNode = getTextByPathList(laypPrNode, ["a:spcAft", "a:spcPct", "attrs", "val"]);
       }
 
       if (lnSpcNode === undefined) {
         lnSpcNode = getTextByPathList(laypPrNode, ["a:lnSpc", "a:spcPct", "attrs", "val"]);
         if (lnSpcNode === undefined) {
-          lnSpcNode = getTextByPathList(laypPrNode, ["a:pPr", "a:lnSpc", "a:spcPts", "attrs", "val"]);
+          lnSpcNode = getTextByPathList(laypPrNode, ["a:lnSpc", "a:spcPts", "attrs", "val"]);
           if (lnSpcNode !== undefined) {
             lnSpcNodeType = "Pts";
           }
@@ -10899,8 +10874,6 @@ function getVerticalMargins(pNode, textBodyNode, type, idx, warpObj) {
 
   }
   if (isInLayoutOrMaster && (spcBefNode === undefined || spcAftNode === undefined || lnSpcNode === undefined)) {
-    //check in master
-    //slideMasterTextStyles
     var slideMasterTextStyles = warpObj["slideMasterTextStyles"];
     var dirLoc = "";
     var lvl = "a:lvl" + lvl + "pPr";
@@ -10915,51 +10888,28 @@ function getVerticalMargins(pNode, textBodyNode, type, idx, warpObj) {
       case "ftr":
       case "sldNum":
       case "textBox":
-        // case "shape":
         dirLoc = "p:bodyStyle";
         break;
       case "shape":
-      //case "textBox":
       default:
         dirLoc = "p:otherStyle";
     }
-    // if (type == "shape" || type == "textBox") {
-    //     lvl = "a:lvl1pPr";
-    // }
     var inLvlNode = getTextByPathList(slideMasterTextStyles, [dirLoc, lvl]);
     if (inLvlNode !== undefined) {
-      if (spcBefNode === undefined) {
+      if (spcBefNode === undefined && spcBefPctNode === undefined) {
         spcBefNode = getTextByPathList(inLvlNode, ["a:spcBef", "a:spcPts", "attrs", "val"]);
-        // if(spcBefNode !== undefined){
-        //     spcBef = "margin-top:" + parseInt(spcBefNode)/100 + "pt;"
-        // }
-        // else{
-        //    //i did not found case with percentage
-        //     spcBefNode = getTextByPathList(inLvlNode, ["a:spcBef", "a:spcPct","attrs","val"]);
-        //     if(spcBefNode !== undefined){
-        //         spcBef = "margin-top:" + parseInt(spcBefNode)/100 + "%;"
-        //     }
-        // }
+        spcBefPctNode = getTextByPathList(inLvlNode, ["a:spcBef", "a:spcPct", "attrs", "val"]);
       }
 
-      if (spcAftNode === undefined) {
+      if (spcAftNode === undefined && spcAftPctNode === undefined) {
         spcAftNode = getTextByPathList(inLvlNode, ["a:spcAft", "a:spcPts", "attrs", "val"]);
-        // if(spcAftNode !== undefined){
-        //     spcAft = "margin-bottom:" + parseInt(spcAftNode)/100 + "pt;"
-        // }
-        // else{
-        //    //i did not found case with percentage
-        //     spcAftNode = getTextByPathList(inLvlNode, ["a:spcAft", "a:spcPct","attrs","val"]);
-        //     if(spcAftNode !== undefined){
-        //         spcBef = "margin-bottom:" + parseInt(spcAftNode)/100 + "%;"
-        //     }
-        // }
+        spcAftPctNode = getTextByPathList(inLvlNode, ["a:spcAft", "a:spcPct", "attrs", "val"]);
       }
 
       if (lnSpcNode === undefined) {
         lnSpcNode = getTextByPathList(inLvlNode, ["a:lnSpc", "a:spcPct", "attrs", "val"]);
         if (lnSpcNode === undefined) {
-          lnSpcNode = getTextByPathList(inLvlNode, ["a:pPr", "a:lnSpc", "a:spcPts", "attrs", "val"]);
+          lnSpcNode = getTextByPathList(inLvlNode, ["a:lnSpc", "a:spcPts", "attrs", "val"]);
           if (lnSpcNode !== undefined) {
             lnSpcNodeType = "Pts";
           }
@@ -10976,6 +10926,19 @@ function getVerticalMargins(pNode, textBodyNode, type, idx, warpObj) {
     spcAfter = parseInt(spcAftNode) / 100 * fontSizeFactor;
   }
 
+  function percentSpace(value) {
+    if (value === undefined || fontSize === undefined) return undefined;
+    var token = String(value).trim();
+    if (!/^\+?(?:\d+(?:\.\d*)?|\.\d+)%?$/.test(token)) return undefined;
+    var fraction = token.endsWith("%") ? parseFloat(token) / 100 : Number(token) / 100000;
+    var pixels = fontSize * fraction;
+    return Number.isFinite(pixels) && pixels >= 0 ? pixels : undefined;
+  }
+  var beforePercent = percentSpace(spcBefPctNode);
+  var afterPercent = percentSpace(spcAftPctNode);
+  if (spcBefNode === undefined && beforePercent !== undefined) spcBefor = beforePercent;
+  if (spcAftNode === undefined && afterPercent !== undefined) spcAfter = afterPercent;
+
   if (lnSpcNode !== undefined && fontSize !== undefined) {
     if (lnSpcNodeType == "Pts") {
       var lineHeightPx = parseInt(lnSpcNode) / 100 * fontSizeFactor;
@@ -10983,26 +10946,24 @@ function getVerticalMargins(pNode, textBodyNode, type, idx, warpObj) {
         marginTopBottomStr += "line-height: " + lineHeightPx + "px;";
       }
     } else {
-      var fct = parseInt(lnSpcNode) / 100000;
+      var fct = String(lnSpcNode).trim().endsWith("%") ? parseFloat(lnSpcNode) / 100 : Number(lnSpcNode) / 100000;
       if (Number.isFinite(fct) && fct > 0) {
         marginTopBottomStr += "line-height: " + fct + ";";
       }
     }
   }
 
-  if (spcBefNode !== undefined) {
+  if ((spcBefNode !== undefined || beforePercent !== undefined) && Number.isFinite(spcBefor)) {
     marginTopBottomStr += "margin-top: " + Math.max(0, spcBefor) + "px;";
   }
-  if (spcAftNode !== undefined) {
+  if ((spcAftNode !== undefined || afterPercent !== undefined) && Number.isFinite(spcAfter)) {
     marginTopBottomStr += "margin-bottom: " + Math.max(0, spcAfter) + "px;";
   }
 
-  //console.log("getVerticalMargins 2 fontSize:", fontSize, "lnSpcNode:", lnSpcNode, "spcLines:", spcLines, "spcBefor:", spcBefor, "spcAfter:", spcAfter)
-  //console.log("getVerticalMargins 3 ", marginTopBottomStr, pNode, warpObj)
 
-  //return spcAft + spcBef;
   return marginTopBottomStr;
 }
+
 function getHorizontalAlign(node, textBodyNode, idx, type, prg_dir, warpObj) {
   var algn = getTextByPathList(node, ["a:pPr", "attrs", "algn"]);
   if (algn === undefined) {
