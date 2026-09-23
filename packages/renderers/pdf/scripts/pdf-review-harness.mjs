@@ -6,7 +6,8 @@ import path from 'node:path';
 /** Real renderer/Worker harness. Originals remain outside Git and are served by neutral ID. */
 export async function createPdfReviewHarness({ output, fixtures = new Map() } = {}) {
   const root = path.resolve(import.meta.dirname, '../../../..');
-  const require = createRequire(path.join(root, 'package.json'));
+  const packageRoot = path.resolve(import.meta.dirname, '..');
+  const require = createRequire(import.meta.url);
   const { build } = require('esbuild');
   const { chromium } = require('playwright');
   await mkdir(output, { recursive: true });
@@ -14,13 +15,13 @@ export async function createPdfReviewHarness({ output, fixtures = new Map() } = 
   const bundle = path.join(temporary, 'browser.mjs');
   const inMemory = process.env.PDF_REVIEW_IN_MEMORY === '1';
   await build({ stdin: { contents: `
-    import renderPdf from './packages/renderers/pdf/src/pdf.ts';
+    import renderPdf from './src/pdf.ts';
     import { findFileViewerViewStateProvider, findFileViewerZoomProvider } from '@file-viewer/core';
     import { getDocument, PixelsPerInch } from 'pdfjs-dist/legacy/build/pdf.mjs';
-    import { buildFileViewerRenderedHtmlDocument } from './packages/core/src/exportDocument.ts';
+    import { buildFileViewerRenderedHtmlDocument } from '../../core/src/exportDocument.ts';
     window.pdfReview = { renderPdf, findFileViewerViewStateProvider, findFileViewerZoomProvider,
       getDocument, PixelsPerInch, buildFileViewerRenderedHtmlDocument };
-  `, resolveDir: root, loader: 'ts' }, outfile: bundle, bundle: true, platform: 'browser', format: inMemory ? 'iife' : 'esm', logLevel: 'warning',
+  `, resolveDir: packageRoot, loader: 'ts' }, outfile: bundle, bundle: true, platform: 'browser', format: inMemory ? 'iife' : 'esm', logLevel: 'warning',
     plugins: inMemory ? [] : [{ name: 'local-pdf-runtime', setup(b) { b.onResolve({ filter: /^pdfjs-dist\// }, args => ({ path: '/pdfjs/' + args.path.slice('pdfjs-dist/'.length), external: true })); } }] });
   const runtime = path.join(root, 'packages/renderers/pdf/dist/vendor/pdfjs');
   const cjkFonts = path.dirname(require.resolve('@fontsource-variable/noto-sans-sc/package.json'));
