@@ -1,0 +1,120 @@
+name: Chart closure verification
+on:
+  push:
+    branches: [fix/compatibility-review-20260922]
+    paths: [.github/workflows/chart-closure.yml, .github/chart-closure/**]
+permissions:
+  contents: write
+concurrency:
+  group: chart-closure-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  verify:
+    if: github.repository == 'flyfish-dev/file-viewer' && github.ref == 'refs/heads/fix/compatibility-review-20260922'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020
+        with:
+          node-version: 24
+      - name: Apply reviewed and checksum-pinned source patch
+        run: |
+          python3 - <<'PY'
+          import pathlib,base64,lzma,hashlib,subprocess
+          text=''.join((pathlib.Path('.github/chart-closure')/f'part-{i}.txt').read_text().strip() for i in range(3))
+          d=lzma.LZMADecompressor(memlimit=128*1024*1024)
+          p=d.decompress(base64.b64decode(text,validate=True),max_length=1024*1024)
+          assert d.eof and not d.unused_data
+          assert hashlib.sha256(p).hexdigest()=='c28acdc7c804cb613a4500744b87a93ac82d3748ac4ecd7f36cd8a638eff9d6d'
+          subprocess.run(['git','apply','--check','-'],input=p,check=True)
+          subprocess.run(['git','apply','--index','-'],input=p,check=True)
+          names=subprocess.check_output(['git','diff','--cached','--name-only'],text=True).splitlines()
+          assert len(names)==8 and all(n.startswith(('packages/renderers/spreadsheet/','docs/regressions/')) for n in names)
+          PY
+      - name: Install actual frozen workspace and build owning packages
+        run: |
+          set -euo pipefail
+          mkdir -p output/chart-closure
+          npm install --prefix "$RUNNER_TEMP/chart-tooling" --ignore-scripts --no-audit --no-fund --save-exact pnpm@11.0.9
+          node "$RUNNER_TEMP/chart-tooling/node_modules/pnpm/bin/pnpm.cjs" --filter . --filter @file-viewer/core --filter @file-viewer/renderer-spreadsheet... --filter @file-viewer/pptx --filter @file-viewer/renderer-word... install --frozen-lockfile --ignore-scripts
+          git diff --exit-code -- pnpm-lock.yaml pnpm-workspace.yaml package.json
+          npm --prefix packages/core run build
+          npm --prefix packages/renderers/doc run build
+          npm --prefix packages/renderers/pptx run build
+          npm --prefix packages/renderers/word run build
+          node node_modules/playwright/cli.js install --with-deps chromium
+          sudo apt-get install -y fonts-noto-cjk
+      - name: Confirm target defects against the unmodified product code
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import subprocess,pathlib
+          names=subprocess.check_output(['git','diff','--cached','--name-only'],text=True).splitlines()
+          for n in names:
+            if '/src/' in n:pathlib.Path(n).write_bytes(subprocess.check_output(['git','show',f'HEAD:{n}']))
+          PY
+          npm --prefix packages/renderers/spreadsheet run build
+          if SPREADSHEET_CHART_MEMORY_TEST=1 SPREADSHEET_CHART_OUTPUT=output/chart-baseline node packages/renderers/spreadsheet/scripts/verify-chart-indexing.mjs > output/chart-closure/baseline.log 2>&1; then
+            echo 'Baseline unexpectedly passed'; exit 1
+          fi
+          python3 - <<'PY'
+          import pathlib,json
+          r=json.loads(pathlib.Path('output/chart-baseline/report.json').read_text())
+          assert r['failed']>0 and any(c['status']=='fail' and c['name'].startswith('Sparse caches retain') for c in r['checks'])
+          PY
+          git checkout-index -f -- packages/renderers/spreadsheet/src/spreadsheet/chartRenderer.ts packages/renderers/spreadsheet/src/spreadsheet/chartSampling.ts packages/renderers/spreadsheet/src/spreadsheet/worker/type.ts packages/renderers/spreadsheet/src/spreadsheet/worker/sheetjs/chartParser.ts packages/renderers/spreadsheet/src/spreadsheet/worker/sheetjs/SheetJsModel.ts
+      - name: Load immutable original outside the repository
+        run: |
+          python3 - <<'PY'
+          import pathlib,os,hashlib,urllib.request
+          with urllib.request.urlopen('https://github.com/user-attachments/files/29660836/test.xlsx',timeout=60) as r:data=r.read(1024*1024)
+          assert len(data)==13701 and hashlib.sha256(data).hexdigest()=='7ac5548a55dbeb6a97025a3af3d84d9752baea8f2745630907b604e53c0ee863'
+          (pathlib.Path(os.environ['RUNNER_TEMP'])/'C013.xlsx').write_bytes(data)
+          PY
+      - name: Verify both real Worker paths, original workbook and generated cases
+        run: |
+          set -euo pipefail
+          npm --prefix packages/renderers/spreadsheet run build
+          cp packages/renderers/spreadsheet/dist/worker/sheet.worker.js apps/viewer-demo/public/vendor/xlsx/sheet.worker.js
+          SPREADSHEET_CHART_ORIGINAL="$RUNNER_TEMP/C013.xlsx" node packages/renderers/spreadsheet/scripts/verify-chart-indexing.mjs 2>&1 | tee output/chart-closure/original.log
+          SPREADSHEET_CHART_OUTPUT=output/chart-generated SPREADSHEET_CHART_WORKER_FILE=apps/viewer-demo/public/vendor/xlsx/sheet.worker.js node packages/renderers/spreadsheet/scripts/verify-chart-indexing.mjs 2>&1 | tee output/chart-closure/generated.log
+          node packages/renderers/spreadsheet/scripts/verify-github-175.mjs
+          node packages/renderers/spreadsheet/scripts/verify-github-234.mjs
+          node packages/renderers/spreadsheet/scripts/verify-text-containers.mjs
+          printf "export default {test:{environment:'node',include:['test/spreadsheet-line-chart-fidelity.spec.ts']}}\n" > output/chart-vitest.config.mjs
+          node node_modules/vitest/vitest.mjs run --config output/chart-vitest.config.mjs
+      - name: Commit only passing fixes and numerical evidence
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import pathlib,json,os,shutil,subprocess,hashlib
+          dst=pathlib.Path('docs/regressions/evidence/spreadsheet-chart-indexing-20260923');dst.mkdir(parents=True,exist_ok=True)
+          for folder,name in [('spreadsheet-chart-indexing','original-report.json'),('chart-generated','generated-report.json')]:
+            p=pathlib.Path('output')/folder/'report.json';r=json.loads(p.read_text())
+            assert r['passed']==33 and r['failed']==0 and r['moduleWorkerUiSkipped'] is False
+            shutil.copyfile(p,dst/name)
+          shutil.copyfile('output/chart-baseline/report.json',dst/'baseline-report.json')
+          shutil.copyfile('output/chart-generated/generated.png',dst/'after.png')
+          receipt={'run':os.environ['GITHUB_RUN_ID'],'checkedCommit':os.environ['GITHUB_SHA'],'baseCommit':'a01892aa87a037cc82dfd3d0e4c526c670f7aaae','checksPerSuite':33,'original':'C013','moduleWorkerUiSkipped':False,'install':'pnpm 11.0.9 actual frozen filtered workspace install','builds':['core','doc','pptx','word','spreadsheet'],'workerSha256':hashlib.sha256(pathlib.Path('apps/viewer-demo/public/vendor/xlsx/sheet.worker.js').read_bytes()).hexdigest(),'fullCorpusAccepted':False}
+          (dst/'verification.json').write_text(json.dumps(receipt,indent=2)+'\n')
+          p=pathlib.Path('docs/regressions/corpus-progress-20260922.md');s=p.read_text();s+='\n## 表格图表专项补充\n\n[图表索引与字号](spreadsheet-chart-indexing-20260923.md)：C013 原样与生成式检查分别通过完整 33 项，含模块 Worker 实际查看器组合、经典 Worker、DPR 1/2 和三档缩放。真实冻结锁安装、相关包构建和静态 Worker 同步已完成；证据见 `evidence/spreadsheet-chart-indexing-20260923/verification.json`。此项收口稀疏索引、断点、完整圆弧及轴字号子项，不替代剩余原稿完整视觉验收。\n';p.write_text(s)
+          subprocess.run(['git','add','--',str(dst),str(p),'apps/viewer-demo/public/vendor/xlsx/sheet.worker.js'],check=True)
+          PY
+          git rm -- .github/chart-closure/part-0.txt .github/chart-closure/part-1.txt .github/chart-closure/part-2.txt .github/workflows/chart-closure.yml
+          git diff --cached --check
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git commit -m 'fix(spreadsheet): preserve indexed chart gaps and authored axis typography'
+          git push origin HEAD:refs/heads/fix/compatibility-review-20260922
+      - name: Package current source for remaining local verification
+        if: always()
+        run: |
+          mkdir -p output/chart-closure
+          git archive --format=tar HEAD packages/core packages/renderers/pptx packages/renderers/spreadsheet packages/renderers/doc packages/renderers/word scripts docs patches package.json pnpm-lock.yaml pnpm-workspace.yaml tsconfig.json | gzip > output/chart-closure/current-source.tar.gz
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        if: always()
+        with:
+          name: chart-closure-verification
+          path: output/chart-closure/
+          retention-days: 3
