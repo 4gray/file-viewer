@@ -39,10 +39,7 @@ jobs:
           npm install --prefix "$RUNNER_TEMP/chart-tooling" --ignore-scripts --no-audit --no-fund --save-exact pnpm@11.0.9
           node "$RUNNER_TEMP/chart-tooling/node_modules/pnpm/bin/pnpm.cjs" --filter . --filter @file-viewer/core --filter @file-viewer/renderer-spreadsheet... --filter @file-viewer/pptx --filter @file-viewer/renderer-word... install --frozen-lockfile --ignore-scripts
           git diff --exit-code -- pnpm-lock.yaml pnpm-workspace.yaml package.json
-          npm --prefix packages/core run build
-          npm --prefix packages/renderers/doc run build
-          npm --prefix packages/renderers/pptx run build
-          npm --prefix packages/renderers/word run build
+          for package in core renderers/doc renderers/pptx renderers/word; do npm --prefix "packages/$package" run build; done
           node node_modules/playwright/cli.js install --with-deps chromium
           sudo apt-get install -y fonts-noto-cjk
       - name: Confirm target defects against the unmodified product code
@@ -55,9 +52,7 @@ jobs:
             if '/src/' in n:pathlib.Path(n).write_bytes(subprocess.check_output(['git','show',f'HEAD:{n}']))
           PY
           npm --prefix packages/renderers/spreadsheet run build
-          if SPREADSHEET_CHART_MEMORY_TEST=1 SPREADSHEET_CHART_OUTPUT=output/chart-baseline node packages/renderers/spreadsheet/scripts/verify-chart-indexing.mjs > output/chart-closure/baseline.log 2>&1; then
-            echo 'Baseline unexpectedly passed'; exit 1
-          fi
+          if SPREADSHEET_CHART_MEMORY_TEST=1 SPREADSHEET_CHART_OUTPUT=output/chart-baseline node packages/renderers/spreadsheet/scripts/verify-chart-indexing.mjs > output/chart-closure/baseline.log 2>&1; then exit 1; fi
           python3 - <<'PY'
           import pathlib,json
           r=json.loads(pathlib.Path('output/chart-baseline/report.json').read_text())
@@ -72,7 +67,7 @@ jobs:
           assert len(data)==13701 and hashlib.sha256(data).hexdigest()=='7ac5548a55dbeb6a97025a3af3d84d9752baea8f2745630907b604e53c0ee863'
           (pathlib.Path(os.environ['RUNNER_TEMP'])/'C013.xlsx').write_bytes(data)
           PY
-      - name: Verify both real Worker paths, original workbook and generated cases
+      - name: Verify both real Worker paths, original workbook and existing regressions
         run: |
           set -euo pipefail
           npm --prefix packages/renderers/spreadsheet run build
@@ -107,11 +102,13 @@ jobs:
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
           git commit -m 'fix(spreadsheet): preserve indexed chart gaps and authored axis typography'
           git push origin HEAD:refs/heads/fix/compatibility-review-20260922
-      - name: Package current source for remaining local verification
+      - name: Package source and diagnostic reports
         if: always()
         run: |
+          set -euo pipefail
           mkdir -p output/chart-closure
-          git archive --format=tar HEAD packages/core packages/renderers/pptx packages/renderers/spreadsheet packages/renderers/doc packages/renderers/word scripts docs patches package.json pnpm-lock.yaml pnpm-workspace.yaml tsconfig.json | gzip > output/chart-closure/current-source.tar.gz
+          git archive --format=tar HEAD packages/core packages/renderers/pptx packages/renderers/spreadsheet packages/renderers/doc packages/renderers/word scripts test docs patches package.json pnpm-lock.yaml pnpm-workspace.yaml | gzip > output/chart-closure/current-source.tar.gz
+          test -s output/chart-closure/current-source.tar.gz
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
         if: always()
         with:
