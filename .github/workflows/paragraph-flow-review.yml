@@ -69,6 +69,8 @@ jobs:
           if node scripts/verify-docx-paragraph-flow.mjs > "$RUNNER_TEMP/flow-baseline.log" 2>&1; then
             cat "$RUNNER_TEMP/flow-baseline.log"; exit 1
           fi
+          tail -80 "$RUNNER_TEMP/flow-baseline.log"
+          cat output/docx-paragraph-flow/report.json
           python3 - <<'PY'
           import pathlib,json
           r=json.loads(pathlib.Path('output/docx-paragraph-flow/report.json').read_text())
