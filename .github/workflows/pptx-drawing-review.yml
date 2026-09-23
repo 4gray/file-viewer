@@ -37,7 +37,7 @@ jobs:
         run: |
           set -euo pipefail
           npm install --prefix "$RUNNER_TEMP/drawing-tooling" --ignore-scripts --no-audit --no-fund --save-exact pnpm@11.0.9
-          node "$RUNNER_TEMP/drawing-tooling/node_modules/pnpm/bin/pnpm.cjs" --filter . --filter @file-viewer/pptx... install --frozen-lockfile --ignore-scripts
+          node "$RUNNER_TEMP/drawing-tooling/node_modules/pnpm/bin/pnpm.cjs" --filter . --filter @file-viewer/core --filter @file-viewer/pptx install --frozen-lockfile --ignore-scripts
           git diff --exit-code -- pnpm-lock.yaml pnpm-workspace.yaml package.json packages/renderers/pptx/package.json
           npm --prefix packages/core run build
           node node_modules/playwright/cli.js install --with-deps chromium
