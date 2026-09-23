@@ -1,0 +1,121 @@
+name: PPTX drawing semantics verification
+on:
+  push:
+    branches: [fix/compatibility-review-20260922]
+    paths: [.github/workflows/pptx-drawing-review.yml, .github/pptx-drawing-review.b64]
+permissions:
+  contents: write
+concurrency:
+  group: pptx-drawing-review-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  verify:
+    if: github.repository == 'flyfish-dev/file-viewer' && github.ref == 'refs/heads/fix/compatibility-review-20260922'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020
+        with:
+          node-version: 24
+      - name: Apply the bounded content-verified source patch
+        run: |
+          python3 - <<'PY'
+          import pathlib,base64,lzma,hashlib,subprocess
+          decoder=lzma.LZMADecompressor(memlimit=128*1024*1024)
+          patch=decoder.decompress(base64.b64decode(pathlib.Path('.github/pptx-drawing-review.b64').read_text().strip(),validate=True),max_length=1024*1024)
+          assert decoder.eof and not decoder.unused_data
+          assert hashlib.sha256(patch).hexdigest()=='5cb2624a316294207f0d0e5a4570c0ee68b9eda54d83a7cccc17c2d20b776ea5'
+          assert subprocess.check_output(['git','hash-object','packages/renderers/pptx/src/engine/support/vendor.js'],text=True).strip()=='502392299433b7829408b23794e99e4b5d3f531b'
+          subprocess.run(['git','apply','--check','-'],input=patch,check=True)
+          subprocess.run(['git','apply','--index','-'],input=patch,check=True)
+          paths=subprocess.check_output(['git','diff','--cached','--name-only'],text=True).splitlines()
+          assert len(paths)==4 and all(p.startswith(('packages/renderers/pptx/','docs/regressions/')) for p in paths)
+          subprocess.run(['git','diff','--cached','--check'],check=True)
+          PY
+      - name: Install owning packages using the frozen workspace lock
+        run: |
+          set -euo pipefail
+          npm install --prefix "$RUNNER_TEMP/drawing-tooling" --ignore-scripts --no-audit --no-fund --save-exact pnpm@11.0.9
+          node "$RUNNER_TEMP/drawing-tooling/node_modules/pnpm/bin/pnpm.cjs" --filter . --filter @file-viewer/pptx... install --frozen-lockfile --ignore-scripts
+          git diff --exit-code -- pnpm-lock.yaml pnpm-workspace.yaml package.json packages/renderers/pptx/package.json
+          npm --prefix packages/core run build
+          node node_modules/playwright/cli.js install --with-deps chromium
+          sudo apt-get install -y fonts-noto-cjk
+      - name: Reproduce target failures in the original implementation
+        run: |
+          set -euo pipefail
+          vendor=packages/renderers/pptx/src/engine/support/vendor.js
+          git show "HEAD:$vendor" > "$vendor"
+          trap 'git checkout-index -f -- packages/renderers/pptx/src/engine/support/vendor.js' EXIT
+          if PPTX_DRAWING_OUTPUT=output/pptx-drawing-baseline node packages/renderers/pptx/scripts/verify-drawing-semantics.mjs > "$RUNNER_TEMP/drawing-baseline.log" 2>&1; then
+            cat "$RUNNER_TEMP/drawing-baseline.log"; exit 1
+          fi
+          python3 - <<'PY'
+          import json,pathlib
+          r=json.loads(pathlib.Path('output/pptx-drawing-baseline/report.json').read_text())
+          failed={c['name'] for c in r['checks'] if c['status']=='fail'}
+          assert {'Mixed fields retain XML run order and use display numbering starting at zero','Bitmap alpha scales only image pixels','Picture horizontal flip applies around the picture viewport','Layout paint stays above master regardless of part-local order'} <= failed
+          print('Targeted baseline failures:',r['failed'])
+          PY
+      - name: Prepare hash-checked original inputs outside the repository
+        run: |
+          python3 - <<'PY'
+          import pathlib,os,hashlib,urllib.request,json
+          entries=[
+            ('C010','310d4a4f7da2051ea152227c8ea0b63c9e242e1ef220b8216800d4b51e0b5aa7',1633011,'29206106/21.pptx'),
+            ('C045','0c08f0c65c55c1b3a47a54183466958496997204e050e278ec1bd6fbcbb3c386',2563196,'32083093/Xiaoe.AI0207_.pptx'),
+            ('C046','a7afc41664bec43e6e4f6bce03af2dbf20f34ce9886dbe2945ccece53214019d',7455203,'32083344/xxxxx.pptx'),
+            ('C044','dc6172154bbfdd37d538c26641ea006c28f714b53b2dcccab89b6977596fa2e1',1067733,'32082849/xxx.2_.pptx'),
+            ('C048','be977ca8c84382b69994866fa0f5606185ff80fdbe86ec68a417e7223801e846',716349,'32267943/weilai.pptx'),
+            ('C016','ff4ac0df803b5d07603e8b44c7759e275d1502506f72e2ef33e1f4de4b9ee5c3',1649977,'30398372/1.1.pptx'),
+            ('C015','388291cb01e86db7f7b9f049b0bf719a1d2137d3e9a274b90d156a756df1b28a',682064,'30030939/default.pptx'),
+            ('C035','3570bbd6a66c11bd7340b803308c6272963d7ec14205f298ca232b18cb4017fb',51329,'31502119/default.pptx'),
+            ('C041','1d9d8517cb2bb87acd10b44b70fdc9357b6f7c8db62242ae126a062d7658e4c8',1914905,'31932484/V1.0.xxx._.pptx'),
+            ('C008','a9d82233ec365432b9c0b61f468eb9b814f39e9fb89234921af9c7f12f7ddf5c',101837,'29033532/4.pptx'),
+            ('C049','49f14b34e7d5b1ce7c29de55dd64a726acdea3d6dcb4b10489fb973a8446c34b',1896517,'32271421/Xiaoe.AI0207_.pptx'),
+            ('C050','5a178b6c5dc63976ae4a133eaff14927ac40320609073b6e836ee7b814b1e685',972288,'32271447/xxx.2_.pptx')]
+          root=pathlib.Path(os.environ['RUNNER_TEMP'])/'drawing-originals';root.mkdir()
+          manifest=[]
+          for id,digest,size,relative in entries:
+            with urllib.request.urlopen('https://github.com/user-attachments/files/'+relative,timeout=60) as response:data=response.read(16*1024*1024)
+            assert len(data)==size and hashlib.sha256(data).hexdigest()==digest,id
+            (root/(id+'.pptx')).write_bytes(data);manifest.append({'id':id,'sha256':digest,'bytes':size})
+          (root/'manifest.json').write_text(json.dumps(manifest,indent=2)+'\n')
+          PY
+      - name: Build and verify production Worker, public viewer and originals
+        run: |
+          set -euo pipefail
+          npm --prefix packages/renderers/pptx run build
+          cp packages/renderers/pptx/dist/worker/pptx.worker.js apps/viewer-demo/public/vendor/pptx/pptx.worker.js
+          cmp packages/renderers/pptx/dist/worker/pptx.worker.js apps/viewer-demo/public/vendor/pptx/pptx.worker.js
+          PPTX_DRAWING_WORKER_FILE=apps/viewer-demo/public/vendor/pptx/pptx.worker.js PPTX_DRAWING_CORPUS_DIR="$RUNNER_TEMP/drawing-originals" node packages/renderers/pptx/scripts/verify-drawing-semantics.mjs
+          node packages/renderers/pptx/scripts/verify-github-176.mjs
+          node packages/renderers/pptx/scripts/verify-github-268.mjs
+          PPTX_PARAGRAPH_CORPUS_DIR="$RUNNER_TEMP/drawing-originals" node packages/renderers/pptx/scripts/verify-paragraph-numbering.mjs
+      - name: Commit verified fixes and bounded acceptance records
+        run: |
+          set -euo pipefail
+          test "$GITHUB_REF" = refs/heads/fix/compatibility-review-20260922
+          python3 - <<'PY'
+          import pathlib,json,os,hashlib,shutil,subprocess
+          dest=pathlib.Path('docs/regressions/evidence/pptx-drawing-semantics-20260923');dest.mkdir(parents=True,exist_ok=True)
+          report=json.loads(pathlib.Path('output/pptx-drawing-semantics/report.json').read_text());assert report['passed']==33 and report['failed']==0
+          assert len(report['originals'])==12 and sum(x['pages'] for x in report['originals'])==60
+          for source,name in [('output/pptx-drawing-semantics/report.json','report.json'),('output/pptx-drawing-baseline/report.json','baseline.json'),('output/pptx-drawing-semantics/generated.png','after.png'),('output/pptx-drawing-baseline/generated.png','before.png'),('output/pptx-paragraph-numbering/report.json','prior-paragraph.json')]:shutil.copyfile(source,dest/name)
+          owning=['packages/renderers/pptx/src/engine/support/vendor.js','packages/renderers/pptx/src/engine/support/drawing-semantics.js','packages/renderers/pptx/scripts/verify-drawing-semantics.mjs','apps/viewer-demo/public/vendor/pptx/pptx.worker.js']
+          receipt={'run':os.environ['GITHUB_RUN_ID'],'checkedCommit':os.environ['GITHUB_SHA'],'baseCommit':'9a11f533b471db6cafac30f8f58dae86511329a7','checks':33,'originalDocuments':12,'originalPages':60,'builds':['core','pptx'],'install':'actual frozen pnpm 11.0.9 filtered workspace install; no lock or dependency changes','publicViewer':True,'productionWorkerCopiedAndTested':True,'fullCorpusAccepted':False,'sha256':{p:hashlib.sha256(pathlib.Path(p).read_bytes()).hexdigest() for p in owning}}
+          (dest/'verification.json').write_text(json.dumps(receipt,indent=2)+'\n')
+          p=pathlib.Path('docs/regressions/corpus-progress-20260922.md');rows=p.read_text().splitlines()
+          for i,row in enumerate(rows):
+            if row.startswith('| P01 '):
+              rows[i]='| P01 PPTX 图层与排版 | 保留图片/页数及 C050 编号/段距验收；**混合文字域顺序、动态显示页码、连续换行、图片透明度与局部翻转、母版/布局堆叠子项已修复**。C010/C008 原样图片属性与 XML 独立对照通过；4 份原稿可见页码域复测；33 项专项检查和 12 份/60 页解析回归通过 | 其余字体、对齐、日期框定位、长文本度量及复杂图表/渐变/掩码的逐元素验收；不把生成式通过扩大成整页像素保真 |'
+          p.write_text('\n'.join(rows)+'\n\n## PPTX 绘制语义补充\n\n[混合文本域、图片效果与母版层次](pptx-drawing-semantics-20260923.md) 记录本轮通用根因、原样子项和范围边界。生产 Worker 与演示站静态 Worker 已同步并按同字节验证；独立部署需要更新已复制的 Worker。其余专项不因 PPTX 检查通过而关闭。\n')
+          subprocess.run(['git','add','--',str(dest),str(p),'apps/viewer-demo/public/vendor/pptx/pptx.worker.js'],check=True)
+          PY
+          git rm -- .github/pptx-drawing-review.b64 .github/workflows/pptx-drawing-review.yml
+          git diff --cached --check
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git commit -m 'fix(pptx): preserve drawing layers, picture effects and mixed text fields'
+          git push origin HEAD:refs/heads/fix/compatibility-review-20260922
