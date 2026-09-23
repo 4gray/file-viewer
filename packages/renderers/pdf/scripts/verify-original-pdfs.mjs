@@ -37,11 +37,10 @@ try{
     for(let n=1;n<=count;n++){
      await p.evaluate(n=>provider.applyState({page:n}),n);
      await p.waitForFunction(n=>{
-      const c=document.querySelector(`.pdfViewer .page[data-page-number="${n}"] canvas`);
-      if(!c||c.width<10)return false;
-      const context=c.getContext('2d');const data=context.getImageData(0,0,c.width,c.height).data;
-      let ink=0;for(let i=0;i<data.length;i+=64)if(data[i+3]>0&&Math.min(data[i],data[i+1],data[i+2])<220)ink++;
-      return ink>10;
+      const el=document.querySelector(`.pdfViewer .page[data-page-number="${n}"]`),c=el?.querySelector('canvas');
+      // Completion is a lifecycle condition, not an ink requirement: a valid
+      // authored blank page must remain blank rather than time out.
+      return c?.width>10&&el.dataset.loaded==='true'&&!el.classList.contains('loadingIcon');
      },n,{timeout:30000});
      await p.evaluate(()=>new Promise(r=>requestAnimationFrame(()=>requestAnimationFrame(r))));
      const metrics=await p.evaluate(async n=>{
@@ -51,12 +50,13 @@ try{
       const reference=document.createElement('canvas');reference.width=canvas.width;reference.height=canvas.height;
       await page.render({canvasContext:reference.getContext('2d'),viewport,transform:[canvas.width/viewport.width,0,0,canvas.height/viewport.height,0,0]}).promise;
       function thumbnail(source){const c=document.createElement('canvas');c.width=160;c.height=160;const x=c.getContext('2d');x.fillStyle='white';x.fillRect(0,0,160,160);x.drawImage(source,0,0,160,160);return x.getImageData(0,0,160,160).data;}
-      const a=thumbnail(canvas),b=thumbnail(reference);let delta=0,ink=0;
-      for(let i=0;i<a.length;i+=4){for(let j=0;j<3;j++)delta+=Math.abs(a[i+j]-b[i+j]);if(Math.min(a[i],a[i+1],a[i+2])<220)ink++;}
+      const a=thumbnail(canvas),b=thumbnail(reference);let delta=0,ink=0,referenceInk=0;
+      for(let i=0;i<a.length;i+=4){for(let j=0;j<3;j++)delta+=Math.abs(a[i+j]-b[i+j]);if(Math.min(a[i],a[i+1],a[i+2])<220)ink++;if(Math.min(b[i],b[i+1],b[i+2])<220)referenceInk++;}
       const rect=canvas.getBoundingClientRect(),host=document.getElementById('host'),shell=host.querySelector('.pdf-shell'),wrap=host.querySelector('.pdf-wrapper');
-      return {page:n,rotation:page.rotate,sourceBox:page.view,viewport:[viewport.width,viewport.height],canvas:[canvas.width,canvas.height],css:[rect.width,rect.height],inkPixels:ink,thumbnailMeanError:delta/(160*160*3*255),hostOverflow:host.scrollHeight-host.clientHeight,shellOverflow:shell.scrollHeight-shell.clientHeight,wrapperWidth:wrap.clientWidth,pageWidth:el.getBoundingClientRect().width};
+      return {page:n,rotation:page.rotate,sourceBox:page.view,viewport:[viewport.width,viewport.height],canvas:[canvas.width,canvas.height],css:[rect.width,rect.height],inkPixels:ink,referenceInkPixels:referenceInk,thumbnailMeanError:delta/(160*160*3*255),hostOverflow:host.scrollHeight-host.clientHeight,shellOverflow:shell.scrollHeight-shell.clientHeight,wrapperWidth:wrap.clientWidth,pageWidth:el.getBoundingClientRect().width};
      },n);
-     assert.ok(metrics.inkPixels>5,`${id} page ${n}: empty canvas`);
+     if(metrics.referenceInkPixels>5)assert.ok(metrics.inkPixels>5,`${id} page ${n}: missing authored ink`);
+     else assert.ok(Math.abs(metrics.inkPixels-metrics.referenceInkPixels)<=5,`${id} page ${n}: authored blank page changed`);
      assert.ok(Math.abs(metrics.css[0]/metrics.css[1]-metrics.viewport[0]/metrics.viewport[1])<.006,`${id} page ${n}: stretched page`);
      assert.ok(metrics.canvas[0]>=metrics.css[0]*dpr-3,`${id} page ${n}: insufficient horizontal backing resolution`);
      assert.ok(metrics.canvas[1]>=metrics.css[1]*dpr-3,`${id} page ${n}: insufficient vertical backing resolution`);
