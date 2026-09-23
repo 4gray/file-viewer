@@ -1,0 +1,56 @@
+diff --git a/packages/renderers/pdf/scripts/pdf-review-harness.mjs b/packages/renderers/pdf/scripts/pdf-review-harness.mjs
+--- a/packages/renderers/pdf/scripts/pdf-review-harness.mjs
++++ b/packages/renderers/pdf/scripts/pdf-review-harness.mjs
+@@ -6,7 +6,8 @@
+ /** Real renderer/Worker harness. Originals remain outside Git and are served by neutral ID. */
+ export async function createPdfReviewHarness({ output, fixtures = new Map() } = {}) {
+   const root = path.resolve(import.meta.dirname, '../../../..');
+-  const require = createRequire(path.join(root, 'package.json'));
++  const packageRoot = path.resolve(import.meta.dirname, '..');
++  const require = createRequire(import.meta.url);
+   const { build } = require('esbuild');
+   const { chromium } = require('playwright');
+   await mkdir(output, { recursive: true });
+@@ -14,13 +15,13 @@
+   const bundle = path.join(temporary, 'browser.mjs');
+   const inMemory = process.env.PDF_REVIEW_IN_MEMORY === '1';
+   await build({ stdin: { contents: `
+-    import renderPdf from './packages/renderers/pdf/src/pdf.ts';
++    import renderPdf from './src/pdf.ts';
+     import { findFileViewerViewStateProvider, findFileViewerZoomProvider } from '@file-viewer/core';
+     import { getDocument, PixelsPerInch } from 'pdfjs-dist/legacy/build/pdf.mjs';
+-    import { buildFileViewerRenderedHtmlDocument } from './packages/core/src/exportDocument.ts';
++    import { buildFileViewerRenderedHtmlDocument } from '../../core/src/exportDocument.ts';
+     window.pdfReview = { renderPdf, findFileViewerViewStateProvider, findFileViewerZoomProvider,
+       getDocument, PixelsPerInch, buildFileViewerRenderedHtmlDocument };
+-  `, resolveDir: root, loader: 'ts' }, outfile: bundle, bundle: true, platform: 'browser', format: inMemory ? 'iife' : 'esm', logLevel: 'warning',
++  `, resolveDir: packageRoot, loader: 'ts' }, outfile: bundle, bundle: true, platform: 'browser', format: inMemory ? 'iife' : 'esm', logLevel: 'warning',
+     plugins: inMemory ? [] : [{ name: 'local-pdf-runtime', setup(b) { b.onResolve({ filter: /^pdfjs-dist\// }, args => ({ path: '/pdfjs/' + args.path.slice('pdfjs-dist/'.length), external: true })); } }] });
+   const runtime = path.join(root, 'packages/renderers/pdf/dist/vendor/pdfjs');
+   const cjkFonts = path.dirname(require.resolve('@fontsource-variable/noto-sans-sc/package.json'));
+diff --git a/packages/renderers/pdf/package.json b/packages/renderers/pdf/package.json
+index 003cb44..fd6e35d 100644
+--- a/packages/renderers/pdf/package.json
++++ b/packages/renderers/pdf/package.json
+@@ -79,6 +79,7 @@
+     }
+   },
+   "devDependencies": {
++    "esbuild": "^0.28.2",
+     "pdf-lib": "1.17.1",
+     "pdfjs-dist": "5.4.624",
+     "typescript": "^6.0.3"
+diff --git a/pnpm-lock.yaml b/pnpm-lock.yaml
+index 005c38f..569bb3f 100644
+--- a/pnpm-lock.yaml
++++ b/pnpm-lock.yaml
+@@ -1812,6 +1812,9 @@ importers:
+         specifier: 5.3.0
+         version: 5.3.0
+     devDependencies:
++      esbuild:
++        specifier: ^0.28.2
++        version: 0.28.2
+       pdf-lib:
+         specifier: 1.17.1
+         version: 1.17.1
