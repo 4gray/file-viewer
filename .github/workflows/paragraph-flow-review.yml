@@ -1,0 +1,119 @@
+name: DOCX paragraph flow verification
+on:
+  push:
+    branches: [fix/compatibility-review-20260922]
+    paths: [.github/workflows/paragraph-flow-review.yml, .github/paragraph-flow-review.b64]
+permissions:
+  contents: write
+concurrency:
+  group: paragraph-flow-public-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  verify:
+    if: github.repository == 'flyfish-dev/file-viewer' && github.ref == 'refs/heads/fix/compatibility-review-20260922'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020
+        with:
+          node-version: 24
+      - name: Unpack content-verified implementation and test files
+        run: |
+          python3 - <<'PY'
+          import pathlib,base64,lzma,hashlib,json,subprocess
+          decoder=lzma.LZMADecompressor(memlimit=128*1024*1024)
+          raw=decoder.decompress(base64.b64decode(pathlib.Path('.github/paragraph-flow-review.b64').read_text(),validate=True),max_length=1024*1024)
+          assert decoder.eof and not decoder.unused_data
+          assert hashlib.sha256(raw).hexdigest()=='b5ede1889635e7e44e9317c0da5a01e6765552532064823d2f7fe2d618c7b80b'
+          files=json.loads(raw)
+          assert len(files)==10
+          for name,text in files.items():
+            path=pathlib.Path(name)
+            assert not path.exists() and not path.is_absolute() and '..' not in path.parts
+            assert name.startswith(('scripts/','test/docx-paragraph-flow/','docs/regressions/'))
+            path.parent.mkdir(parents=True,exist_ok=True);path.write_text(text)
+          subprocess.run(['git','add','--',*files],check=True)
+          PY
+      - name: Install actual package dependencies and preserve immutable baselines
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/flow-runtime"
+          node --input-type=module <<'JS'
+          import fs from 'node:fs';
+          const dependencies={};
+          for(const dir of ['core','renderers/doc','renderers/word','renderers/pptx']){
+            const p=JSON.parse(fs.readFileSync(`packages/${dir}/package.json`,'utf8'));
+            for(const [id,v]of Object.entries({...p.dependencies,...p.devDependencies}))dependencies[id]=v.startsWith('workspace:')?v.slice(10):v.replace(/^[~^]/,'');
+          }
+          Object.assign(dependencies,{playwright:'1.63.0',esbuild:'0.28.2',pnpm:'11.0.9'});
+          fs.writeFileSync(`${process.env.RUNNER_TEMP}/flow-runtime/package.json`,JSON.stringify({private:true,type:'module',dependencies}));
+          JS
+          cd "$RUNNER_TEMP/flow-runtime"
+          npm install --ignore-scripts --no-audit --no-fund
+          cp -a node_modules/@file-viewer/docx "$RUNNER_TEMP/flow-npm-base"
+          patch --batch --forward -p1 -d node_modules/@file-viewer/docx < "$GITHUB_WORKSPACE/patches/@file-viewer__docx@0.3.32.patch"
+          cp -a node_modules/@file-viewer/docx "$RUNNER_TEMP/flow-compat-base"
+          ln -s "$RUNNER_TEMP/flow-runtime/node_modules" "$GITHUB_WORKSPACE/node_modules"
+      - name: Build owning packages and verify the baseline fails the target assertion
+        run: |
+          set -euo pipefail
+          npm --prefix packages/core run build
+          rm -rf "$RUNNER_TEMP/flow-runtime/node_modules/@file-viewer/core"
+          ln -s "$GITHUB_WORKSPACE/packages/core" "$RUNNER_TEMP/flow-runtime/node_modules/@file-viewer/core"
+          npm --prefix packages/renderers/doc run build
+          rm -rf "$RUNNER_TEMP/flow-runtime/node_modules/@file-viewer/doc"
+          ln -s "$GITHUB_WORKSPACE/packages/renderers/doc" "$RUNNER_TEMP/flow-runtime/node_modules/@file-viewer/doc"
+          npm --prefix packages/renderers/word run build
+          node node_modules/playwright/cli.js install --with-deps chromium
+          if node scripts/verify-docx-paragraph-flow.mjs > "$RUNNER_TEMP/flow-baseline.log" 2>&1; then
+            cat "$RUNNER_TEMP/flow-baseline.log"; exit 1
+          fi
+          python3 - <<'PY'
+          import pathlib,json
+          r=json.loads(pathlib.Path('output/docx-paragraph-flow/report.json').read_text())
+          assert r['passed']==0 and r['checks'][0]['status']=='fail'
+          assert r['checks'][0]['name']=='Real XML paragraph spacing precedence case 0'
+          PY
+      - name: Apply exact entry transformation and regenerate standard pnpm patch
+        run: |
+          set -euo pipefail
+          node scripts/docx-paragraph-flow/patch-distribution.mjs "$RUNNER_TEMP/flow-runtime/node_modules/@file-viewer/docx/dist" all
+          python3 scripts/docx-paragraph-flow/integrate.py "$RUNNER_TEMP/flow-npm-base" "$RUNNER_TEMP/flow-runtime/node_modules/@file-viewer/docx"
+          npm --prefix packages/core run build
+          npm --prefix packages/renderers/word run build
+          node scripts/verify-docx-paragraph-flow.mjs
+          node scripts/verify-docx-engine-compatibility.mjs
+          node packages/renderers/doc/scripts/verify-table-spec.mjs
+          git diff --check
+      - name: Verify actual frozen workspace installation and browser resolution
+        run: |
+          set -euo pipefail
+          rm node_modules
+          node "$RUNNER_TEMP/flow-runtime/node_modules/pnpm/bin/pnpm.cjs" --filter . --filter @file-viewer/renderer-word... --filter @file-viewer/pptx install --frozen-lockfile --ignore-scripts
+          npm --prefix packages/core run build
+          npm --prefix packages/renderers/doc run build
+          npm --prefix packages/renderers/word run build
+          node scripts/verify-docx-paragraph-flow.mjs
+          node scripts/verify-docx-engine-compatibility.mjs
+      - name: Push verified package patch and numerical evidence
+        run: |
+          set -euo pipefail
+          test "$GITHUB_REF" = refs/heads/fix/compatibility-review-20260922
+          python3 - <<'PY'
+          import pathlib,json,hashlib,shutil,os
+          dest=pathlib.Path('docs/regressions/evidence/docx-paragraph-flow-20260923')
+          report=json.loads(pathlib.Path('output/docx-paragraph-flow/report.json').read_text());assert report['passed']==31
+          old=json.loads(pathlib.Path('output/docx-engine-compatibility/report.json').read_text());assert old['passed']==11
+          shutil.copyfile('output/docx-paragraph-flow/report.json',dest/'ci-report.json')
+          shutil.copyfile('output/docx-paragraph-flow/generated.png',dest/'generated.png')
+          shutil.copyfile('output/docx-engine-compatibility/report.json',dest/'engine-regression.json')
+          (dest/'verification.json').write_text(json.dumps({'run':os.environ['GITHUB_RUN_ID'],'checkedCommit':os.environ['GITHUB_SHA'],'baselineTargetFailure':True,'flowChecks':31,'previousEngineChecks':11,'originalRanInCI':False,'install':'actual pnpm frozen filtered workspace install with declared patches','owningBuilds':['core','doc','word'],'upstreamTypescriptBuildVerified':False,'fullWorkspaceBuild':False},indent=2)+'\n')
+          PY
+          git add -- patches/@file-viewer__docx@0.3.32.patch patches/docx-engine-compatibility.json pnpm-lock.yaml packages/core/src/platform/assets.ts apps/viewer-demo/public/vendor/docx/docx.worker.js scripts/verify-docx-engine-compatibility.mjs docs/regressions/evidence/docx-paragraph-flow-20260923
+          git rm -- .github/paragraph-flow-review.b64 .github/workflows/paragraph-flow-review.yml
+          git diff --cached --check
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git commit -m 'fix(word): normalize unusable paragraph gaps and batch safe pagination tails'
+          git push origin HEAD:refs/heads/fix/compatibility-review-20260922
