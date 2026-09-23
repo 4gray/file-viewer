@@ -146,3 +146,15 @@ Repeated headings get numeric suffixes. Existing table-of-contents links such as
 DOM and multiple viewers on one page; the host page URL is not changed. Authored
 IDs, external links and modified clicks are preserved. This does not generate a
 table of contents from a `[TOC]` directive.
+
+### LRC lyrics
+
+`.lrc` uses the text renderer and is registered in the lite, standard and all presets.
+The read-only view offers annotated lyrics, plain lyrics and the exact decoded source.
+It supports repeated line timestamps, inline word timestamps, metadata, signed offsets,
+UTF-8/UTF-16/GBK, wrapping and the shared zoom controls. `M:`, `F:` and `D:` roles
+continue until the next explicit role; untimed text and unknown markers remain visible.
+Positive offsets advance timestamps. This is static preview, not synchronized playback.
+`options.text.encoding`, `toolbar` and `wrapLongLines` retain their existing meaning.
+Oversized inputs or excessive timestamp expansion fall back to the existing source
+viewer instead of silently truncating lyrics. LRC content never creates active HTML.
