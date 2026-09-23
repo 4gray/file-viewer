@@ -54,3 +54,7 @@ DOCX 修复仍依赖仓库 `patchedDependencies`，安装时不得跳过；单�
 ## PPTX 绘制语义补充
 
 [混合文本域、图片效果与母版层次](pptx-drawing-semantics-20260923.md) 记录本轮通用根因、原样子项和范围边界。生产 Worker 与演示站静态 Worker 已同步并按同字节验证；独立部署需要更新已复制的 Worker。其余专项不因 PPTX 检查通过而关闭。
+
+## 表格图表专项补充
+
+[图表索引与字号](spreadsheet-chart-indexing-20260923.md)：C013 原样与生成式检查分别通过完整 33 项，含模块 Worker 实际查看器组合、经典 Worker、DPR 1/2 和三档缩放。真实冻结锁安装、相关包构建和静态 Worker 同步已完成；证据见 `evidence/spreadsheet-chart-indexing-20260923/verification.json`。此项收口稀疏索引、断点、完整圆弧及轴字号子项，不替代剩余原稿完整视觉验收。
