@@ -1,0 +1,79 @@
+name: LRC and archive compatibility verification
+on:
+  push:
+    branches: [fix/compatibility-review-20260922]
+permissions:
+  contents: write
+jobs:
+  verify:
+    if: github.repository == 'flyfish-dev/file-viewer' && github.ref == 'refs/heads/fix/compatibility-review-20260922'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020
+        with:
+          node-version: 24
+      - name: Apply content-verified renderer changes
+        run: |
+          python3 - <<'PY'
+          import pathlib,base64,lzma,hashlib,subprocess
+          d=lzma.LZMADecompressor(memlimit=128*1024*1024)
+          patch=d.decompress(base64.b64decode(pathlib.Path('.github/lrc-review.b64').read_text().strip(),validate=True),max_length=2*1024*1024)
+          assert d.eof and not d.unused_data
+          assert hashlib.sha256(patch).hexdigest()=='71b7094b6a14fa18817e590fc16e265cec6e21113df846fdd5f51f3a24206777'
+          subprocess.run(['git','apply','--check','-'],input=patch,check=True)
+          subprocess.run(['git','apply','--index','-'],input=patch,check=True)
+          paths=subprocess.check_output(['git','diff','--cached','--name-only'],text=True).splitlines()
+          assert len(paths)==15 and all(not p.startswith('.github/') for p in paths)
+          subprocess.run(['git','diff','--cached','--check'],check=True)
+          PY
+      - name: Install actual package dependencies
+        run: |
+          mkdir -p "$RUNNER_TEMP/lrc-runtime"
+          node --input-type=module <<'JS'
+          import fs from 'node:fs';
+          const dependencies={};
+          for(const dir of ['core','renderers/text','renderers/archive']){
+            const p=JSON.parse(fs.readFileSync(`packages/${dir}/package.json`,'utf8'));
+            for(const[id,v]of Object.entries({...p.dependencies,...p.devDependencies}))dependencies[id]=v.startsWith('workspace:')?v.slice(10):v.replace(/^[~^]/,'');
+          }
+          Object.assign(dependencies,{playwright:'1.63.0',esbuild:'0.28.2'});
+          fs.writeFileSync(`${process.env.RUNNER_TEMP}/lrc-runtime/package.json`,JSON.stringify({private:true,type:'module',dependencies}));
+          JS
+          cd "$RUNNER_TEMP/lrc-runtime"
+          npm install --ignore-scripts --no-audit --no-fund
+          ln -s "$RUNNER_TEMP/lrc-runtime/node_modules" "$GITHUB_WORKSPACE/node_modules"
+      - name: Build packages and run parser regressions
+        run: |
+          set -euo pipefail
+          npm --prefix packages/core run build
+          rm -rf "$RUNNER_TEMP/lrc-runtime/node_modules/@file-viewer/core"
+          ln -s "$GITHUB_WORKSPACE/packages/core" "$RUNNER_TEMP/lrc-runtime/node_modules/@file-viewer/core"
+          npm --prefix packages/renderers/text run build
+          npm --prefix packages/renderers/archive run build
+          node packages/renderers/archive/scripts/verify-zip-filename-encoding.mjs
+          node packages/renderers/archive/scripts/verify-github-101.mjs
+          node packages/renderers/archive/scripts/verify-github-148.mjs
+      - name: Verify actual browser renderer
+        run: |
+          node node_modules/playwright/cli.js install --with-deps chromium
+          node packages/renderers/text/test/lrc.browser.mjs
+      - name: Record evidence and push tested functionality
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import pathlib,json,shutil,os
+          out=pathlib.Path('output/lrc-compatibility');dest=pathlib.Path('docs/regressions/evidence/lrc-20260923')
+          assert json.loads((out/'report.json').read_text())['passed']==11
+          shutil.copyfile(out/'report.json',dest/'ci-report.json')
+          shutil.copyfile(out/'annotated.png',dest/'annotated.png')
+          (dest/'verification.json').write_text(json.dumps({'run':os.environ['GITHUB_RUN_ID'],'scope':'Core/Text/Archive actual dependency builds; 31 Text tests; 10 ZIP checks; 11 generated-fixture browser checks; local original LRC separately recorded; not full workspace release acceptance'},indent=2)+'\n')
+          PY
+          git add -- docs/regressions/evidence/lrc-20260923
+          git rm -- .github/lrc-review.b64 .github/workflows/lrc-review.yml
+          git diff --cached --check
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git commit -m 'feat(text): preview LRC lyrics with source, word timing and safe offline rendering'
+          git push origin HEAD:refs/heads/fix/compatibility-review-20260922
