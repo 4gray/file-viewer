@@ -1,0 +1,68 @@
+name: Sheet layout state verification
+on:
+  push:
+    branches: [fix/compatibility-review-20260922]
+permissions:
+  contents: write
+jobs:
+  verify:
+    if: github.repository == 'flyfish-dev/file-viewer' && github.ref == 'refs/heads/fix/compatibility-review-20260922'
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020
+        with:
+          node-version: 24
+      - name: Apply reviewed source changes
+        run: |
+          sed -i 's/^ diff --git/diff --git/' .github/sheet-layout.patch
+          git apply --check .github/sheet-layout.patch
+          git apply --index .github/sheet-layout.patch
+          git diff --cached --check
+      - name: Install actual dependencies
+        run: |
+          mkdir -p "$RUNNER_TEMP/layout-runtime"
+          node --input-type=module <<'JS'
+          import fs from 'node:fs';
+          const dependencies={};
+          for(const dir of ['core','renderers/spreadsheet']){
+            const p=JSON.parse(fs.readFileSync(`packages/${dir}/package.json`,'utf8'));
+            for(const [id,v] of Object.entries({...p.dependencies,...p.devDependencies}))dependencies[id]=v.startsWith('workspace:')?v.slice(10):v.replace(/^[~^]/,'');
+          }
+          Object.assign(dependencies,{playwright:'1.63.0',esbuild:'0.28.2'});
+          fs.writeFileSync(`${process.env.RUNNER_TEMP}/layout-runtime/package.json`,JSON.stringify({private:true,type:'module',dependencies}));
+          JS
+          cd "$RUNNER_TEMP/layout-runtime"
+          npm install --ignore-scripts --no-audit --no-fund
+          ln -s "$RUNNER_TEMP/layout-runtime/node_modules" "$GITHUB_WORKSPACE/node_modules"
+      - name: Build and verify actual interaction
+        run: |
+          set -euo pipefail
+          npm --prefix packages/core run build
+          rm -rf "$RUNNER_TEMP/layout-runtime/node_modules/@file-viewer/core"
+          ln -s "$GITHUB_WORKSPACE/packages/core" "$RUNNER_TEMP/layout-runtime/node_modules/@file-viewer/core"
+          npm --prefix packages/renderers/spreadsheet run build
+          node packages/renderers/spreadsheet/scripts/verify-github-175.mjs
+          node packages/renderers/spreadsheet/scripts/verify-github-234.mjs
+          node node_modules/playwright/cli.js install --with-deps chromium
+          node packages/renderers/spreadsheet/scripts/verify-layout-state.mjs
+      - name: Push verified source and evidence
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import json,pathlib,shutil,os
+          root=pathlib.Path('docs/regressions/evidence/spreadsheet-layout-20260923')
+          report=json.loads(pathlib.Path('output/spreadsheet-layout-state/report.json').read_text())
+          assert report['passed']==10 and not report['originalChecked']
+          shutil.copyfile('output/spreadsheet-layout-state/report.json',root/'ci-report.json')
+          shutil.copyfile('output/spreadsheet-layout-state/sheet-layout.png',root/'sheet-layout.png')
+          (root/'verification.json').write_text(json.dumps({'run':os.environ['GITHUB_RUN_ID'],'scope':'Core and Spreadsheet builds, actual mouse interactions and existing dimensions/rich-text regressions; original separately checked locally'},indent=2)+'\n')
+          PY
+          git add -- docs/regressions/evidence/spreadsheet-layout-20260923
+          git rm -- .github/sheet-layout.patch .github/workflows/sheet-layout-review.yml
+          git diff --cached --check
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git commit -m 'fix(spreadsheet): preserve resized row metrics through cached sheet zoom'
+          git push origin HEAD:refs/heads/fix/compatibility-review-20260922
