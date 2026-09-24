@@ -4,6 +4,7 @@ import { correctDocxMixedAnchorOrigins, correctDocxVmlTextAnchorOrigins } from '
 import { observeDocxFrames } from './docxFrames.js'
 import { layoutDocxExplicitTabs } from './docxTabs.js'
 import { normalizeDocxVmlTextViewports } from './docxVml.js'
+import { normalizeDocxMergedCellBorders } from './docxMergedBorders.js'
 import {
   DEFAULT_FILE_VIEWER_DOCX_RUNTIME_VERSION,
   resolveFileViewerDocxWorkerJsZipUrl,
@@ -612,6 +613,7 @@ function makeDocxResponsive(target: HTMLDivElement, context?: FileRenderContext)
       }
 
       page.style.transform = 'translateX(-50%)'
+      normalizeDocxMergedCellBorders(page)
       correctDocxMixedAnchorOrigins(page)
       correctDocxVmlTextAnchorOrigins(page)
       normalizeDocxVmlTextViewports(page)
