@@ -108,7 +108,7 @@ try{
     },originalXml);
     await check(`C030 DPR ${dpr}: original characters, all images and framed-paragraph structure preserved`,async()=>{
      const v=await page.evaluate(()=>({text:[...host.querySelectorAll('article')].map(a=>a.textContent).join('').replace(/\u00a0/g,''),images:[...host.querySelectorAll('article img')].map(i=>i.naturalWidth),tables:host.querySelectorAll('article table').length}));
-     assert.equal(v.text,expected.text);assert.equal(v.text.length,871);assert.equal(expected.tables,0);assert.equal(v.tables,0);assert.equal(v.images.length,5);assert.ok(v.images.every(w=>w>0));
+     assert.equal(sha(v.text),sha(expected.text),'Original body text sequence');assert.equal(v.text.length,871);assert.equal(expected.tables,0);assert.equal(v.tables,0);assert.equal(v.images.length,5);assert.ok(v.images.every(w=>w>0));
      return {characters:v.text.length,textSha256:sha(v.text),images:v.images.length};
     });
     for(const scale of [1,.5,2,.88,1]){
