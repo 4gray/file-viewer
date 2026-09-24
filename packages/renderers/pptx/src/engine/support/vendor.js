@@ -1,3 +1,4 @@
+import { resolveDiagramTextFrames, effectiveTextTransform } from './diagram-text.js';
 import { getTextBodyMetrics } from './text-body.js';
 import { getDrawingTextRuns, getFirstSlideNumber, getPictureEffects } from './drawing-semantics.js';
 import { getEmbeddedPictureCandidates } from './picture-resource.js';
@@ -1056,6 +1057,7 @@ async function genShape(node, pNode, slideLayoutSpNode, slideMasterSpNode, id, n
     direction: bodyPrAttrs["vert"],
     upright: getTransformBool(bodyPrAttrs["upright"])
   });
+  const textXfrm = effectiveTextTransform(txtXframeNode, slideXfrmNode);
   const textMetrics = getTextBodyMetrics(node["p:txBody"], slideLayoutSpNode?.["p:txBody"], slideMasterSpNode?.["p:txBody"]);
   const textInsetStyle = "box-sizing:border-box;padding:" +
     mapGroupSizeToPx(textMetrics.top, "y", groupContext) + "px " +
@@ -8003,8 +8005,8 @@ async function genShape(node, pNode, slideLayoutSpNode, slideMasterSpNode, id, n
       " " + getContentDir(node, type, warpObj) +
       "' data-pptx-autofit='" + textMetrics.autofit + "' data-pptx-wrap='" + textMetrics.wrap + "' _id='" + id + "' _idx='" + idx + "' _type='" + type + "' _name='" + name +
       "' style='" +
-      getPosition(slideXfrmNode, pNode, slideLayoutXfrmNode, slideMasterXfrmNode, sType, groupContext) +
-      getSize(slideXfrmNode, slideLayoutXfrmNode, slideMasterXfrmNode, groupContext) +
+      getPosition(textXfrm, pNode, slideLayoutXfrmNode, slideMasterXfrmNode, sType, groupContext) +
+      getSize(textXfrm, slideLayoutXfrmNode, slideMasterXfrmNode, groupContext) +
       textInsetStyle +
       " z-index: " + order + ";" +
       "transform: rotate(" + ((txtRotate !== undefined) ? txtRotate : 0) + "deg);" +
@@ -8300,8 +8302,8 @@ async function genShape(node, pNode, slideLayoutSpNode, slideMasterSpNode, id, n
       " " + getContentDir(node, type, warpObj) +
       "' data-pptx-autofit='" + textMetrics.autofit + "' data-pptx-wrap='" + textMetrics.wrap + "' _id='" + id + "' _idx='" + idx + "' _type='" + type + "' _name='" + name +
       "' style='" +
-      getPosition(slideXfrmNode, pNode, slideLayoutXfrmNode, slideMasterXfrmNode, sType, groupContext) +
-      getSize(slideXfrmNode, slideLayoutXfrmNode, slideMasterXfrmNode, groupContext) +
+      getPosition(textXfrm, pNode, slideLayoutXfrmNode, slideMasterXfrmNode, sType, groupContext) +
+      getSize(textXfrm, slideLayoutXfrmNode, slideMasterXfrmNode, groupContext) +
       textInsetStyle +
       " z-index: " + order + ";" +
       "transform: rotate(" + ((txtRotate !== undefined) ? txtRotate : 0) + "deg);" +
@@ -8325,8 +8327,8 @@ async function genShape(node, pNode, slideLayoutSpNode, slideMasterSpNode, id, n
       " " + getContentDir(node, type, warpObj) +
       "' data-pptx-autofit='" + textMetrics.autofit + "' data-pptx-wrap='" + textMetrics.wrap + "' _id='" + id + "' _idx='" + idx + "' _type='" + type + "' _name='" + name +
       "' style='" +
-      getPosition(slideXfrmNode, pNode, slideLayoutXfrmNode, slideMasterXfrmNode, sType, groupContext) +
-      getSize(slideXfrmNode, slideLayoutXfrmNode, slideMasterXfrmNode, groupContext) +
+      getPosition(textXfrm, pNode, slideLayoutXfrmNode, slideMasterXfrmNode, sType, groupContext) +
+      getSize(textXfrm, slideLayoutXfrmNode, slideMasterXfrmNode, groupContext) +
       textInsetStyle +
       getBorder(node, pNode, false, "shape", warpObj) +
       await getShapeFill(node, pNode, false, warpObj, source) +
@@ -8947,7 +8949,7 @@ async function genTextBody(textBodyNode, spNode, slideLayoutSpNode, slideMasterS
       };
     }
     //console.log("textBodyNode: ", textBodyNode["a:lstStyle"])
-    var prg_width_node = getTextByPathList(spNode, [ "p:spPr", "a:xfrm", "a:ext", "attrs", "cx" ]);
+    var prg_width_node = effectiveTextTransform(spNode["p:txXfrm"], spNode["p:spPr"]?.["a:xfrm"])?.["a:ext"]?.attrs?.cx;
     if (prg_width_node === undefined) {
       prg_width_node = getTextByPathList(slideLayoutSpNode, [ "p:spPr", "a:xfrm", "a:ext", "attrs", "cx" ]);
     }
@@ -10724,20 +10726,13 @@ async function genDiagram(node, warpObj, source, sType, groupContext) {
   // }
   // var dgmDrwSpArray = getTextByPathList(dgmDrwFile, ["dsp:drawing", "dsp:spTree", "dsp:sp"]);
   //var dgmDrwSpArray = getTextByPathList(warpObj["digramFileContent"], ["dsp:drawing", "dsp:spTree", "dsp:sp"]);
-  var dgmDrwSpArray = getTextByPathList(warpObj["digramFileContent"], ["p:drawing", "p:spTree", "p:sp"]);
+  var dgmDrwSpArray = asArray(getTextByPathList(warpObj["digramFileContent"], ["p:drawing", "p:spTree", "p:sp"]));
+  const frames = resolveDiagramTextFrames(dgmDrwSpArray, dgmData, dgmLayout);
   var rslt = "";
-  if (dgmDrwSpArray !== undefined) {
-    var dgmDrwSpArrayLen = dgmDrwSpArray.length;
-    for (var i = 0; i < dgmDrwSpArrayLen; i++) {
-      var dspSp = dgmDrwSpArray[i];
-      // var dspSpObjToStr = JSON.stringify(dspSp);
-      // var pSpStr = dspSpObjToStr.replace(/dsp:/g, "p:");
-      // var pSpStrToObj = JSON.parse(pSpStr);
-      //console.log("pSpStrToObj[" + i + "]: ", pSpStrToObj);
-      //rslt += processSpNode(pSpStrToObj, node, warpObj, "diagramBg", sType)
-      rslt += await processSpNode(dspSp, node, warpObj, "diagramBg", sType, groupContext)
-    }
-    // dgmDrwFile: "dsp:"-> "p:"
+  for (const original of dgmDrwSpArray) {
+    const frame = frames.get(original.attrs?.modelId);
+    const dspSp = frame ? { ...original, "p:txXfrm": frame } : original;
+    rslt += await processSpNode(dspSp, node, warpObj, "diagramBg", sType, groupContext);
   }
 
   return "<div class='block diagram-content' style='" +
