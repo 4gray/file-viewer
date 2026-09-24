@@ -1,3 +1,4 @@
+import { getTextBodyMetrics } from './text-body.js';
 import { getDrawingTextRuns, getFirstSlideNumber, getPictureEffects } from './drawing-semantics.js';
 import { getEmbeddedPictureCandidates } from './picture-resource.js';
 import { createBuiltinDrawingMlTableStyle } from './table-styles.js';
@@ -1055,6 +1056,12 @@ async function genShape(node, pNode, slideLayoutSpNode, slideMasterSpNode, id, n
     direction: bodyPrAttrs["vert"],
     upright: getTransformBool(bodyPrAttrs["upright"])
   });
+  const textMetrics = getTextBodyMetrics(node["p:txBody"], slideLayoutSpNode?.["p:txBody"], slideMasterSpNode?.["p:txBody"]);
+  const textInsetStyle = "box-sizing:border-box;padding:" +
+    mapGroupSizeToPx(textMetrics.top, "y", groupContext) + "px " +
+    mapGroupSizeToPx(textMetrics.right, "x", groupContext) + "px " +
+    mapGroupSizeToPx(textMetrics.bottom, "y", groupContext) + "px " +
+    mapGroupSizeToPx(textMetrics.left, "x", groupContext) + "px;";
   //////////////////////////////////////////////////
   if (shapType !== undefined || custShapType !== undefined /*&& slideXfrmNode !== undefined*/) {
     var off = getTextByPathList(slideXfrmNode, [ "a:off", "attrs" ]) || { x: 0, y: 0 };
@@ -7994,10 +8001,11 @@ async function genShape(node, pNode, slideLayoutSpNode, slideMasterSpNode, id, n
 
     result += "<div class='block " + getVerticalAlign(node, slideLayoutSpNode, slideMasterSpNode, type) + //block content
       " " + getContentDir(node, type, warpObj) +
-      "' _id='" + id + "' _idx='" + idx + "' _type='" + type + "' _name='" + name +
+      "' data-pptx-autofit='" + textMetrics.autofit + "' data-pptx-wrap='" + textMetrics.wrap + "' _id='" + id + "' _idx='" + idx + "' _type='" + type + "' _name='" + name +
       "' style='" +
       getPosition(slideXfrmNode, pNode, slideLayoutXfrmNode, slideMasterXfrmNode, sType, groupContext) +
       getSize(slideXfrmNode, slideLayoutXfrmNode, slideMasterXfrmNode, groupContext) +
+      textInsetStyle +
       " z-index: " + order + ";" +
       "transform: rotate(" + ((txtRotate !== undefined) ? txtRotate : 0) + "deg);" +
       "'>";
@@ -8290,10 +8298,11 @@ async function genShape(node, pNode, slideLayoutSpNode, slideMasterSpNode, id, n
     result += "</svg>";
     result += "<div class='block " + getVerticalAlign(node, slideLayoutSpNode, slideMasterSpNode, type) + //block content
       " " + getContentDir(node, type, warpObj) +
-      "' _id='" + id + "' _idx='" + idx + "' _type='" + type + "' _name='" + name +
+      "' data-pptx-autofit='" + textMetrics.autofit + "' data-pptx-wrap='" + textMetrics.wrap + "' _id='" + id + "' _idx='" + idx + "' _type='" + type + "' _name='" + name +
       "' style='" +
       getPosition(slideXfrmNode, pNode, slideLayoutXfrmNode, slideMasterXfrmNode, sType, groupContext) +
       getSize(slideXfrmNode, slideLayoutXfrmNode, slideMasterXfrmNode, groupContext) +
+      textInsetStyle +
       " z-index: " + order + ";" +
       "transform: rotate(" + ((txtRotate !== undefined) ? txtRotate : 0) + "deg);" +
       "'>";
@@ -8314,10 +8323,11 @@ async function genShape(node, pNode, slideLayoutSpNode, slideMasterSpNode, id, n
 
     result += "<div class='block " + getVerticalAlign(node, slideLayoutSpNode, slideMasterSpNode, type) +//block content
       " " + getContentDir(node, type, warpObj) +
-      "' _id='" + id + "' _idx='" + idx + "' _type='" + type + "' _name='" + name +
+      "' data-pptx-autofit='" + textMetrics.autofit + "' data-pptx-wrap='" + textMetrics.wrap + "' _id='" + id + "' _idx='" + idx + "' _type='" + type + "' _name='" + name +
       "' style='" +
       getPosition(slideXfrmNode, pNode, slideLayoutXfrmNode, slideMasterXfrmNode, sType, groupContext) +
       getSize(slideXfrmNode, slideLayoutXfrmNode, slideMasterXfrmNode, groupContext) +
+      textInsetStyle +
       getBorder(node, pNode, false, "shape", warpObj) +
       await getShapeFill(node, pNode, false, warpObj, source) +
       " z-index: " + order + ";" +
@@ -8886,6 +8896,8 @@ function processSpPrNode(node, warpObj) {
 
 async function genTextBody(textBodyNode, spNode, slideLayoutSpNode, slideMasterSpNode, type, idx, warpObj, tbl_col_width, groupContext) {
   var text = "";
+  const textMetrics = getTextBodyMetrics(textBodyNode, slideLayoutSpNode?.["p:txBody"], slideMasterSpNode?.["p:txBody"]);
+  const insetWidth = tbl_col_width === undefined ? mapGroupSizeToPx(textMetrics.left + textMetrics.right, "x", groupContext) : 0;
   var slideMasterTextStyles = warpObj["slideMasterTextStyles"];
 
   if (textBodyNode === undefined) {
@@ -8949,11 +8961,11 @@ async function genTextBody(textBodyNode, spNode, slideLayoutSpNode, slideMasterS
     if (prg_height_node === undefined) {
       prg_height_node = getTextByPathList(slideMasterSpNode, [ "p:spPr", "a:xfrm", "a:ext", "attrs", "cy" ]);
     }
-    var sld_prg_width_px = prg_width_node !== undefined ? mapGroupSizeToPx(prg_width_node, "x", groupContext) : NaN;
+    var sld_prg_width_px = prg_width_node !== undefined ? Math.max(0, mapGroupSizeToPx(prg_width_node, "x", groupContext) - insetWidth) : NaN;
     var sld_prg_width = Number.isFinite(sld_prg_width_px) ? ("width:" + sld_prg_width_px + "px;") : "width:inherit;";
     var sld_prg_height = "";
     var prg_dir = getPregraphDir(pNode, textBodyNode, idx, type, warpObj);
-    text += "<div style='display: flex;" + sld_prg_width + sld_prg_height + "' class='slide-prgrph " + getHorizontalAlign(pNode, textBodyNode, idx, type, prg_dir, warpObj) + " " +
+    text += "<div style='display: flex;flex-shrink:0;" + sld_prg_width + sld_prg_height + "' class='slide-prgrph " + getHorizontalAlign(pNode, textBodyNode, idx, type, prg_dir, warpObj) + " " +
       prg_dir + " " + cssName + "' >";
     var buText_ary = await genBuChar(pNode, i, spNode, textBodyNode, pFontStyle, idx, type, warpObj);
     var isBullate = (buText_ary[0] !== undefined && buText_ary[0] !== null && buText_ary[0] != "") ? true : false;
@@ -9002,7 +9014,7 @@ async function genTextBody(textBodyNode, spNode, slideLayoutSpNode, slideMasterS
 
     var prg_width_px = undefined;
     if (prg_width_node !== undefined) {
-      prg_width_px = mapGroupSizeToPx(prg_width_node, "x", groupContext) - bu_width - mrgin_val;
+      prg_width_px = Math.max(0, mapGroupSizeToPx(prg_width_node, "x", groupContext) - insetWidth - bu_width - mrgin_val);
     }
     if (isBullate) {
       //get prg_width_node if there is a bulltes
@@ -9015,12 +9027,12 @@ async function genTextBody(textBodyNode, spNode, slideLayoutSpNode, slideMasterS
     var prg_width = ((prg_width_px !== undefined && !isNaN(prg_width_px)) ? ("width:" + prg_width_px) + "px;" : "width:inherit;");
     var paragraphContentHeight = tbl_col_width !== undefined
       ? "height:auto;min-height:0;max-height:100%;"
-      : "height:100%;";
+      : "height:auto;min-height:0;";
     var paragraphLineHeightMatch = /(?:^|;)line-height:\s*([^;]+)/.exec(styleText);
     var paragraphLineHeight = paragraphLineHeightMatch !== null
       ? paragraphLineHeightMatch[1]
       : DRAWINGML_SINGLE_LINE_HEIGHT;
-    text += "<div style='" + paragraphContentHeight + "line-height:" + paragraphLineHeight + ";direction: initial;overflow-wrap:normal;word-wrap:normal;word-break:normal;" + prg_width + margin + "' >";
+    text += "<div style='" + paragraphContentHeight + (textMetrics.wrap === "none" ? "white-space:nowrap;" : "white-space:normal;") + "line-height:" + paragraphLineHeight + ";direction: initial;overflow-wrap:normal;word-wrap:normal;word-break:normal;" + prg_width + margin + "' >";
     text += prgrph_text;
     text += "</div>";
     text += "</div>";
@@ -11622,7 +11634,7 @@ function getFontSize(node, textBodyNode, pFontStyle, lvl, type, warpObj) {
   var lstStyle = (textBodyNode !== undefined)? textBodyNode["a:lstStyle"] : undefined;
   var lvlpPr = "a:lvl" + lvl + "pPr";
   var fontSize = undefined;
-  var sz, kern;
+  var sz;
   if (node["a:rPr"] !== undefined) {
     fontSize = parseInt(node["a:rPr"]["attrs"]["sz"]) / 100;
   }
@@ -11638,19 +11650,6 @@ function getFontSize(node, textBodyNode, pFontStyle, lvl, type, warpObj) {
     sz = getTextByPathList(lstStyle, [lvlpPr, "a:defRPr", "attrs", "sz"]);
     fontSize = parseInt(sz) / 100;
   }
-  //a:spAutoFit
-  var isAutoFit = false;
-  var isKerning = false;
-  if (textBodyNode !== undefined){
-    var spAutoFitNode = getTextByPathList(textBodyNode, ["a:bodyPr", "a:spAutoFit"]);
-    // if (spAutoFitNode === undefined) {
-    //     spAutoFitNode = getTextByPathList(textBodyNode, ["a:bodyPr", "a:normAutofit"]);
-    // }
-    if (spAutoFitNode !== undefined){
-      isAutoFit = true;
-      isKerning = true;
-    }
-  }
   if (isNaN(fontSize) || fontSize === undefined) {
     // if (type == "shape" || type == "textBox") {
     //     type = "body";
@@ -11658,10 +11657,7 @@ function getFontSize(node, textBodyNode, pFontStyle, lvl, type, warpObj) {
     // }
     sz = getTextByPathList(warpObj["slideLayoutTables"], ["typeTable", type, "p:txBody", "a:lstStyle", lvlpPr, "a:defRPr", "attrs", "sz"]);
     fontSize = parseInt(sz) / 100;
-    kern = getTextByPathList(warpObj["slideLayoutTables"], ["typeTable", type, "p:txBody", "a:lstStyle", lvlpPr, "a:defRPr", "attrs", "kern"]);
-    if (isKerning && kern !== undefined && !isNaN(fontSize) && (fontSize - parseInt(kern) / 100) > 0){
-      fontSize = fontSize - parseInt(kern) / 100;
-    }
+
   }
 
   if (isNaN(fontSize) || fontSize === undefined) {
@@ -11670,46 +11666,33 @@ function getFontSize(node, textBodyNode, pFontStyle, lvl, type, warpObj) {
     //     lvlpPr = "a:lvl1pPr";
     // }
     sz = getTextByPathList(warpObj["slideMasterTables"], ["typeTable", type, "p:txBody", "a:lstStyle", lvlpPr, "a:defRPr", "attrs", "sz"]);
-    kern = getTextByPathList(warpObj["slideMasterTables"], ["typeTable", type, "p:txBody", "a:lstStyle", lvlpPr, "a:defRPr", "attrs", "kern"]);
     if (sz === undefined) {
       if (type == "title" || type == "subTitle" || type == "ctrTitle") {
         sz = getTextByPathList(warpObj["slideMasterTextStyles"], ["p:titleStyle", lvlpPr, "a:defRPr", "attrs", "sz"]);
-        kern = getTextByPathList(warpObj["slideMasterTextStyles"], ["p:titleStyle", lvlpPr, "a:defRPr", "attrs", "kern"]);
       } else if (type == "body" || type == "obj" || type == "dt" || type == "sldNum") {
         sz = getTextByPathList(warpObj["slideMasterTextStyles"], ["p:bodyStyle", lvlpPr, "a:defRPr", "attrs", "sz"]);
-        kern = getTextByPathList(warpObj["slideMasterTextStyles"], ["p:bodyStyle", lvlpPr, "a:defRPr", "attrs", "kern"]);
       }
       else if (type == "shape" || type === "textBox") {
         // Freeform shapes and text boxes inherit otherStyle, not body
         // placeholder typography.
         sz = getTextByPathList(warpObj["slideMasterTextStyles"], ["p:otherStyle", lvlpPr, "a:defRPr", "attrs", "sz"]);
-        kern = getTextByPathList(warpObj["slideMasterTextStyles"], ["p:otherStyle", lvlpPr, "a:defRPr", "attrs", "kern"]);
-        isKerning = false;
       }
 
       if (sz === undefined) {
         sz = getTextByPathList(warpObj["defaultTextStyle"], [lvlpPr, "a:defRPr", "attrs", "sz"]);
-        kern = (kern === undefined)? getTextByPathList(warpObj["defaultTextStyle"], [lvlpPr, "a:defRPr", "attrs", "kern"]) : undefined;
-        isKerning = false;
       }
       //  else if (type === undefined || type == "shape") {
       //     sz = getTextByPathList(warpObj["slideMasterTextStyles"], ["p:otherStyle", lvlpPr, "a:defRPr", "attrs", "sz"]);
-      //     kern = getTextByPathList(warpObj["slideMasterTextStyles"], ["p:otherStyle", lvlpPr, "a:defRPr", "attrs", "kern"]);
       // }
       // else if (type == "textBox") {
       //     sz = getTextByPathList(warpObj["slideMasterTextStyles"], ["p:otherStyle", lvlpPr, "a:defRPr", "attrs", "sz"]);
-      //     kern = getTextByPathList(warpObj["slideMasterTextStyles"], ["p:otherStyle", lvlpPr, "a:defRPr", "attrs", "kern"]);
       // }
     }
     fontSize = parseInt(sz) / 100;
-    if (isKerning && kern !== undefined && !isNaN(fontSize) && ((fontSize - parseInt(kern) / 100) > parseInt(kern) / 100 )) {
-      fontSize = fontSize - parseInt(kern) / 100;
-      //fontSize =  parseInt(kern) / 100;
-    }
   }
 
   var baseline = getTextByPathList(node, ["a:rPr", "attrs", "baseline"]);
-  if (baseline !== undefined && !isNaN(fontSize)) {
+  if (baseline !== undefined && Number(baseline) !== 0 && !isNaN(fontSize)) {
     // PowerPoint renders superscript/subscript runs at two thirds of the
     // inherited size. Treating baseline as a point delta leaves those runs
     // almost full-size and can push following text onto a new line.
@@ -11717,11 +11700,8 @@ function getFontSize(node, textBodyNode, pFontStyle, lvl, type, warpObj) {
   }
 
   if (!isNaN(fontSize)){
-    var normAutofit = getTextByPathList(textBodyNode, ["a:bodyPr", "a:normAutofit", "attrs", "fontScale"]);
-    if (normAutofit !== undefined && normAutofit != 0){
-      //console.log("fontSize", fontSize, "normAutofit: ", normAutofit, normAutofit/100000)
-      fontSize = Math.round(fontSize * (normAutofit / 100000))
-    }
+    const fontScale = getTextBodyMetrics(textBodyNode).fontScale;
+    fontSize *= fontScale;
   }
 
   return isNaN(fontSize) ? ((type == "br") ? "initial" : "inherit") : (fontSize * fontSizeFactor + "px");// + "pt");

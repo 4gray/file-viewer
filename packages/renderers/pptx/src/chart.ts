@@ -225,6 +225,11 @@ const hasTextOverflow = (block: HTMLElement, fitWidth = true) =>
   (fitWidth && block.scrollWidth > block.clientWidth + TEXT_FIT_TOLERANCE);
 
 const fitOverflowingTextBlock = (block: HTMLElement, fitWidth = true) => {
+  // noAutofit/spAutoFit preserve authored typography. Only normal AutoFit may
+  // shrink text; unmarked legacy/table content retains its existing policy.
+  const mode = block.dataset.pptxAutofit;
+  if (mode && mode !== 'normal') return;
+  if (block.dataset.pptxWrap === 'none') fitWidth = false;
   if (!block.querySelector('.text-block') || block.clientWidth <= 0 || block.clientHeight <= 0) {
     return;
   }
