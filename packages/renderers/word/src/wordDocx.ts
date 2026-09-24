@@ -1,8 +1,9 @@
 import type { DocxProgressEvent, Options, renderAsync } from '@file-viewer/docx'
 import JSZip from 'jszip'
-import { correctDocxMixedAnchorOrigins } from './docxAnchors.js'
+import { correctDocxMixedAnchorOrigins, correctDocxVmlTextAnchorOrigins } from './docxAnchors.js'
 import { observeDocxFrames } from './docxFrames.js'
 import { layoutDocxExplicitTabs } from './docxTabs.js'
+import { normalizeDocxVmlTextViewports } from './docxVml.js'
 import {
   DEFAULT_FILE_VIEWER_DOCX_RUNTIME_VERSION,
   resolveFileViewerDocxWorkerJsZipUrl,
@@ -612,6 +613,8 @@ function makeDocxResponsive(target: HTMLDivElement, context?: FileRenderContext)
 
       page.style.transform = 'translateX(-50%)'
       correctDocxMixedAnchorOrigins(page)
+      correctDocxVmlTextAnchorOrigins(page)
+      normalizeDocxVmlTextViewports(page)
       layoutDocxExplicitTabs(page)
 
       const pageWidth = page.offsetWidth
