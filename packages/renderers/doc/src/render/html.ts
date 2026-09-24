@@ -536,15 +536,29 @@ function renderTableColumns(block: TableBlock): string {
 }
 
 function renderCellBody(cell: TableCellBlock, context: RenderContext): string {
-  const body = reviewParagraphs(cell.paragraphs, context)
-    .map(paragraph => renderParagraphBlock(paragraph, context, { inline: true })).join('')
-    || '<div class="msdoc-paragraph"><br></div>';
-  // MS-DOC textFlow 5 keeps CJK glyphs upright in a vertical line. Put the
-  // writing mode on content, not <td>, so it cannot rotate the table's grid.
-  if (cell.meta?.textFlow === 5) {
-    return `<div class="msdoc-cell-vertical" style="writing-mode:vertical-rl;text-orientation:upright;margin:0 auto">${body}</div>`;
+  const parts: string[] = [];
+  let paragraphs: ParagraphBlock[] = [];
+  const wrapText = (body: string) => cell.meta?.textFlow === 5
+    ? `<div class="msdoc-cell-vertical" style="writing-mode:vertical-rl;text-orientation:upright;margin:0 auto">${body}</div>`
+    : body;
+  const flush = () => {
+    if (!paragraphs.length) return;
+    const body = reviewParagraphs(paragraphs, context)
+      .map(paragraph => renderParagraphBlock(paragraph, context, { inline: true })).join('');
+    if (body) parts.push(wrapText(body));
+    paragraphs = [];
+  };
+  for (const block of cell.blocks ?? cell.paragraphs) {
+    if (block.type === 'paragraph') paragraphs.push(block);
+    else {
+      // Review/vertical-flow groups stop at the nested table boundary. Neither
+      // revision merging nor textFlow may absorb or rotate a child's own grid.
+      flush();
+      parts.push(renderTableBlock(block, context));
+    }
   }
-  return body;
+  flush();
+  return parts.join('') || wrapText('<div class="msdoc-paragraph"><br></div>');
 }
 
 function renderTableBlock(block: TableBlock, context: RenderContext): string {
@@ -588,6 +602,7 @@ export function defaultMsDocCss(): string {
 .msdoc-line-at-least span,.msdoc-line-at-least ins,.msdoc-line-at-least del{line-height:normal}
 .msdoc-paragraph:last-child{margin-bottom:0}
 .msdoc-table{margin:12px 0;border-collapse:collapse;border-spacing:0;max-width:100%}
+.msdoc-cell>.msdoc-table{margin-top:0;margin-bottom:0}
 .msdoc-cell{padding:6px 8px;vertical-align:top;word-break:break-word;overflow-wrap:anywhere}
 .msdoc-link{color:#1a73e8;text-decoration:none}
 .msdoc-link:hover{text-decoration:underline}
