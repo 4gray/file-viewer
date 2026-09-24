@@ -32,15 +32,28 @@ jobs:
           assert len(paths)==5 and all(x.startswith(('packages/renderers/word/','docs/regressions/')) for x in paths)
           subprocess.run(['git','diff','--cached','--check'],check=True)
           PY
-      - name: Actual frozen workspace installation and owning builds
+      - name: Install pinned package manager
+        timeout-minutes: 3
         run: |
-          set -euo pipefail
+          set -euxo pipefail
           npm install --prefix "$RUNNER_TEMP/merge-tooling" --ignore-scripts --no-audit --no-fund --save-exact pnpm@11.0.9
+      - name: Actual frozen workspace installation
+        timeout-minutes: 5
+        run: |
+          set -euxo pipefail
           node "$RUNNER_TEMP/merge-tooling/node_modules/pnpm/bin/pnpm.cjs" --filter . --filter @file-viewer/renderer-word... --filter @file-viewer/pptx install --frozen-lockfile --ignore-scripts
           git diff --exit-code -- pnpm-lock.yaml pnpm-workspace.yaml package.json patches/
+      - name: Build and type-check owning packages
+        timeout-minutes: 3
+        run: |
+          set -euxo pipefail
           npm --prefix packages/core run build
           npm --prefix packages/renderers/doc run build
           npm --prefix packages/renderers/word run build
+      - name: Prepare actual Chromium and fonts
+        timeout-minutes: 5
+        run: |
+          set -euxo pipefail
           node node_modules/playwright/cli.js install --with-deps chromium
           sudo apt-get install -y fonts-noto-cjk
       - name: Prepare the immutable original outside the repository
