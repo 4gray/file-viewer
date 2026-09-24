@@ -1,0 +1,117 @@
+name: WordML encoding and defaults verification
+on:
+  push:
+    branches: [fix/compatibility-review-20260922]
+    paths: [.github/wordml-review.b64, .github/workflows/wordml-review.yml]
+permissions:
+  contents: write
+concurrency:
+  group: wordml-review-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  verify:
+    if: github.repository == 'flyfish-dev/file-viewer' && github.ref == 'refs/heads/fix/compatibility-review-20260922'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020
+        with:
+          node-version: 24
+      - name: Apply bounded source and regression changes
+        run: |
+          python3 - <<'PY'
+          import pathlib,base64,lzma,hashlib,subprocess
+          d=lzma.LZMADecompressor(memlimit=128*1024*1024)
+          patch=d.decompress(base64.b64decode(pathlib.Path('.github/wordml-review.b64').read_text().strip(),validate=True),max_length=1024*1024)
+          assert d.eof and not d.unused_data
+          assert hashlib.sha256(patch).hexdigest()=='db39524563023eba3f8230399318d268aae2e1639f0174345c8d4078b01a99f5'
+          assert subprocess.check_output(['git','hash-object','packages/renderers/word/src/wordMl.ts'],text=True).strip()=='c1840898e876ffc79f6a7dc4e6588c60273a2dbc'
+          subprocess.run(['git','apply','--check','-'],input=patch,check=True)
+          subprocess.run(['git','apply','--index','-'],input=patch,check=True)
+          paths=subprocess.check_output(['git','diff','--cached','--name-only'],text=True).splitlines()
+          assert len(paths)==5 and all(p.startswith(('packages/renderers/word/','docs/regressions/')) for p in paths)
+          subprocess.run(['git','diff','--cached','--check'],check=True)
+          PY
+      - name: Install the frozen owning workspace and build dependencies
+        run: |
+          set -euo pipefail
+          npm install --prefix "$RUNNER_TEMP/wordml-tooling" --ignore-scripts --no-audit --no-fund --save-exact pnpm@11.0.9
+          node "$RUNNER_TEMP/wordml-tooling/node_modules/pnpm/bin/pnpm.cjs" --filter . --filter @file-viewer/renderer-word... --filter @file-viewer/pptx install --frozen-lockfile --ignore-scripts
+          git diff --exit-code -- pnpm-lock.yaml pnpm-workspace.yaml package.json patches/
+          npm --prefix packages/core run build
+          npm --prefix packages/renderers/doc run build
+          node node_modules/playwright/cli.js install --with-deps chromium
+          sudo apt-get install -y fonts-noto-cjk
+      - name: Confirm both old conversion failures
+        run: |
+          set -euo pipefail
+          p=packages/renderers/word/src/wordMl.ts
+          git show "HEAD:$p" > "$p"
+          trap 'git checkout-index -f -- packages/renderers/word/src/wordMl.ts' EXIT
+          npm --prefix packages/renderers/word run type-check
+          node --input-type=module <<'JS'
+          import assert from 'node:assert/strict';import fs from 'node:fs';import {createRequire} from 'node:module';
+          import {decodeWordMlBytes,convertWordMlToDocx} from './packages/renderers/word/dist/wordMl.js';
+          const req=createRequire(process.cwd()+'/packages/renderers/word/package.json'),{JSDOM}=req('jsdom'),JSZip=req('jszip');
+          const W='http://schemas.microsoft.com/office/word/2003/wordml';
+          const xml=`<w:wordDocument xmlns:w="${W}"><w:fonts><w:defaultFonts w:ascii="Courier New" w:fareast="SimSun"/></w:fonts><w:body><w:p><w:r><w:t>text</w:t></w:r></w:p></w:body></w:wordDocument>`;
+          const bytes=Buffer.concat([Buffer.from('<?xml version="1.0" encoding="GBK"?><x>'),Buffer.from([0xd6,0xd0,0xce,0xc4]),Buffer.from('</x>')]);
+          const ab=b=>b.buffer.slice(b.byteOffset,b.byteOffset+b.byteLength),dom=new JSDOM('<div id="host"></div>');
+          try{
+            const z=await JSZip.loadAsync(await convertWordMlToDocx(ab(Buffer.from(xml)),dom.window.document.querySelector('#host')));
+            const encodingLost=!decodeWordMlBytes(ab(bytes)).includes('中文'),defaultsLost=z.file('word/styles.xml')===null;
+            assert.ok(encodingLost);assert.ok(defaultsLost);
+            fs.mkdirSync('output',{recursive:true});fs.writeFileSync('output/wordml-baseline.json',JSON.stringify({encodingLost,defaultsLost,targetsReproduced:2},null,2)+'\n');
+          }finally{dom.window.close()}
+          JS
+      - name: Prepare immutable originals outside the repository
+        run: |
+          python3 - <<'PY'
+          import urllib.request,pathlib,os,hashlib,zipfile,io
+          root=pathlib.Path(os.environ['RUNNER_TEMP'])/'wordml-originals';root.mkdir()
+          with urllib.request.urlopen('https://github.com/user-attachments/files/31734252/default.zip',timeout=60) as r:data=r.read(2*1024*1024)
+          assert hashlib.sha256(data).hexdigest()=='e562163940282e3a51e5b0a506ef655e62aa51ef77a6e22666ff6c60d7a07703'
+          found=False
+          with zipfile.ZipFile(io.BytesIO(data)) as z:
+            for info in z.infolist():
+              if info.is_dir() or info.file_size!=26086:continue
+              original=z.read(info)
+              if hashlib.sha256(original).hexdigest()=='7b9380a4c80eb4c17b8f3c7d2b69b4c012d2c2ff1e1d58125ee7cb8bfc07e35d':(root/'C070.doc').write_bytes(original);found=True
+          assert found
+          with urllib.request.urlopen('https://github.com/user-attachments/files/31128086/asdf.docx',timeout=60) as r:data=r.read(2*1024*1024)
+          assert len(data)==411152 and hashlib.sha256(data).hexdigest()=='4b2e9b2519af88f32cec9c4e0622ca7979f5c768c569819d48e26355001cb467'
+          (root/'C030.docx').write_bytes(data)
+          PY
+      - name: Verify actual viewer, originals and existing renderer paths
+        run: |
+          set -euo pipefail
+          npm --prefix packages/renderers/word run build
+          WORDML_REVIEW_ORIGINAL="$RUNNER_TEMP/wordml-originals/C070.doc" node packages/renderers/word/scripts/verify-wordml-encoding-defaults.mjs
+          WORD_TABS_ORIGINAL="$RUNNER_TEMP/wordml-originals/C030.docx" node packages/renderers/word/scripts/verify-explicit-tabs.mjs
+          node scripts/verify-docx-engine-compatibility.mjs
+          node scripts/verify-container-compatibility.mjs
+          for name in table-spec github-34 github-87 github-171 github-192 github-236; do node "packages/renderers/doc/scripts/verify-$name.mjs"; done
+      - name: Push tested conversion repairs and numerical evidence
+        run: |
+          set -euo pipefail
+          test "$GITHUB_REF" = refs/heads/fix/compatibility-review-20260922
+          python3 - <<'PY'
+          import pathlib,json,os,shutil,hashlib,subprocess
+          root=pathlib.Path('docs/regressions/evidence/wordml-encoding-defaults-20260924');root.mkdir(parents=True,exist_ok=True)
+          report=json.loads(pathlib.Path('output/wordml-encoding-defaults/report.json').read_text())
+          assert report['completed'] and report['passed']==19 and report['failed']==0 and report['screenshots'] and len(report['originals'])==2
+          for source,name in [('output/wordml-encoding-defaults/report.json','report.json'),('output/wordml-baseline.json','baseline.json'),('output/wordml-encoding-defaults/generated.png','generated.png'),('output/word-explicit-tabs/report.json','tabs-regression.json'),('output/docx-engine-compatibility/report.json','engine.json'),('output/container-compatibility/report.json','containers.json')]:shutil.copyfile(source,root/name)
+          tabs=json.loads((root/'tabs-regression.json').read_text());assert tabs['passed']==27 and tabs['failed']==0 and tabs['imageDecodeAwaited']
+          assert json.loads((root/'engine.json').read_text())['passed']==11
+          assert json.loads((root/'containers.json').read_text())['passed']==4
+          (root/'verification.json').write_text(json.dumps({'run':os.environ['GITHUB_RUN_ID'],'checkedCommit':os.environ['GITHUB_SHA'],'baseCommit':'60fd54467c628053837ce6b0bd0f2deb269ab7ae','newRootCauses':2,'original':'C070','checks':19,'wordUnitTests':47,'previousTabChecks':27,'dpr':[1,2],'builds':['core','doc','word'],'install':'actual pnpm 11.0.9 frozen filtered workspace installation; patches preserved','fullCorpusAccepted':False,'sha256':{p.name:hashlib.sha256(p.read_bytes()).hexdigest() for p in root.iterdir() if p.is_file()}},indent=2)+'\n')
+          p=pathlib.Path('docs/regressions/corpus-progress-20260922.md');s=p.read_text();s+='\n## WordML 编码与默认字体专项\n\n[编码与默认字体](wordml-encoding-defaults-20260924.md)：修复 XML 编码声明被忽略、fonts/defaultFonts 未进入 OOXML 文档默认样式的两项通用缺陷。14 项新增单元测试和 19 项实际 renderer 检查通过；C070 的字体默认部件、正文及页脚关系已复核，C030 的 27 项原样/几何检查再次通过。C070 本身为 UTF-8，多代码页乱码由独立生成的同路径例子复现，不将已正常的原件文本重复计为修复。未涉及的 WordML 列表/VML/完整分页与资料包剩余专项不因本组通过而关闭。\n';p.write_text(s)
+          subprocess.run(['git','add','--',str(root),str(p)],check=True)
+          PY
+          git rm -- .github/wordml-review.b64 .github/workflows/wordml-review.yml
+          git diff --cached --check
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git commit -m 'fix(word): honor WordML XML encodings and document default fonts'
+          git push origin HEAD:refs/heads/fix/compatibility-review-20260922
