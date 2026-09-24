@@ -1,3 +1,11 @@
+type ChartOptions = {
+  grouping?: 'standard' | 'clustered' | 'stacked' | 'percentStacked';
+  holeSize?: number;
+  firstSliceAngle?: number;
+  legend?: { show?: boolean; position?: string };
+  series?: Array<{ color?: string; points?: Record<string, string> }>;
+};
+
 type ChartMessage = {
   type?: string;
   data?: {
@@ -5,6 +13,7 @@ type ChartMessage = {
     chartType?: string;
     barDirection?: string;
     chartData?: any;
+    chartOptions?: ChartOptions;
   };
 };
 
@@ -282,7 +291,7 @@ const renderChart = async (message: ChartMessage, root: ParentNode) => {
   }
   const { billboard, d3Format } = await chartLibraryLoader();
   const bb = billboard.default || billboard;
-  const { area, bar, line, pie, scatter } = billboard;
+  const { area, bar, line, pie, donut, scatter } = billboard;
   const chart: Record<string, any> = {
     // A selector makes Billboard query the main document. That misses chart
     // placeholders inside the viewer Shadow DOM and makes it fall back to body.
@@ -300,6 +309,54 @@ const renderChart = async (message: ChartMessage, root: ParentNode) => {
   };
 
   switch (payload.chartType) {
+    case 'doughnutChart': {
+      const series = chartData[0];
+      const columns: Array<[string, number]> = [];
+      const names: Record<string, string> = {};
+      const colors: Record<string, string> = {};
+      for (const [index, point] of (series?.values || []).entries()) {
+        // Keep one library id per indexed point, not per label. Duplicate/empty
+        // labels are valid and must never merge sectors. Null is not zero.
+        if (typeof point.y !== 'number' || !Number.isFinite(point.y) || point.y === 0) continue;
+        const id = `point-${index}`;
+        columns.push([id, Math.abs(point.y)]);
+        names[id] = String(series.xlabels?.[index] ?? point.x ?? index);
+        const fill = payload.chartOptions?.series?.[0]?.points?.[point.x] ?? payload.chartOptions?.series?.[0]?.color;
+        if (fill && /^(?:#[\da-f]{6}(?:[\da-f]{2})?|transparent)$/i.test(fill)) colors[id] = fill;
+      }
+      const hole = payload.chartOptions?.holeSize;
+      const holeRatio = (typeof hole === 'number' && Number.isFinite(hole) && hole >= 10 && hole <= 90 ? hole : 50) / 100;
+      const angle = payload.chartOptions?.firstSliceAngle;
+      let adjustingWidth = false;
+      Object.assign(chart, {
+        data: { columns, names, colors, type: donut(), order: null },
+        donut: {
+          startingAngle: typeof angle === 'number' && Number.isFinite(angle) ? angle * Math.PI / 180 : 0,
+          expand: false,
+          label: { show: false },
+        },
+        transition: { duration: 0 },
+        onrendered(this: any) {
+          // Billboard accepts an absolute ring width, while DrawingML specifies
+          // a ratio. Read its finished SVG geometry and update through the public
+          // config API. This also tracks library resize without private state or
+          // assumptions about legend/font layout. The re-entrancy guard bounds
+          // the corrective redraw to one pass per changed radius.
+          if (adjustingWidth || typeof this.config !== 'function') return;
+          let radius = 0;
+          for (const arc of chartTarget.querySelectorAll<SVGPathElement>('.bb-arc')) {
+            const match = /[Aa]([\d.+eE-]+)[ ,]+([\d.+eE-]+)/.exec(arc.getAttribute('d') || '');
+            if (match) radius = Math.max(radius, Number(match[1]));
+          }
+          if (!(radius > 0) || !Number.isFinite(radius)) return;
+          const width = radius * (1 - holeRatio);
+          if (Math.abs(Number(this.config('donut.width')) - width) <= 0.01) return;
+          adjustingWidth = true;
+          try { this.config('donut.width', width, true); } finally { adjustingWidth = false; }
+        },
+      });
+      break;
+    }
     case 'lineChart':
       Object.assign(chart, {
         data: {
@@ -381,6 +438,47 @@ const renderChart = async (message: ChartMessage, root: ParentNode) => {
   }
 
   if (chart.data) {
+    const options = payload.chartOptions;
+    if (options?.legend) {
+      chart.legend = {
+        show: options.legend.show !== false,
+        position: options.legend.position === 'b' ? 'bottom' : 'right',
+        // The chart library cannot measure an empty SVG text node. Use an
+        // invisible measuring character only in legend presentation; names and
+        // tooltip data still retain the document's actual empty string.
+        format: (label: string) => label === '' ? '\u200b' : label,
+      };
+    }
+    if (['barChart', 'areaChart', 'lineChart'].includes(payload.chartType)) {
+      // Distinct series can legitimately share a display name. Billboard groups
+      // by id, so disambiguate only duplicate ids and preserve authored labels.
+      const used = new Set<string>();
+      const reserved = new Set<string>(chart.data.columns.map((column: any[]) => String(column[0])));
+      const names: Record<string, string> = {};
+      chart.data.columns.forEach((column: any[], index: number) => {
+        const label = String(column[0]);
+        let id = label;
+        if (used.has(id)) {
+          id = `pptx-series-${index}`;
+          while (reserved.has(id) || used.has(id)) id += '-';
+          column[0] = id;
+        }
+        used.add(id);
+        Object.defineProperty(names, id, { value: label, enumerable: true });
+      });
+      chart.data.names = names;
+      if (options?.grouping === 'stacked' || options?.grouping === 'percentStacked') {
+        chart.data.groups = [chart.data.columns.map((column: any[]) => column[0])];
+        if (options.grouping === 'percentStacked') chart.data.stack = { normalize: true };
+        chart.data.order = null;
+      }
+      const colors: Record<string, string> = {};
+      chartData.forEach((item: any, index: number) => {
+        const fill = options?.series?.[index]?.color;
+        if (fill && /^(?:#[\da-f]{6}(?:[\da-f]{2})?|transparent)$/i.test(fill)) Object.defineProperty(colors, String(chart.data.columns[index][0]), { value: fill, enumerable: true });
+      });
+      if (Object.keys(colors).length) chart.data.colors = colors;
+    }
     // Billboard resets the bind target's position to relative. Keep DrawingML
     // placement on the outer frame; only let the library own its inner surface.
     const surface = chartTarget.ownerDocument.createElement('div');

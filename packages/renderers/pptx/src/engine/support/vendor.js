@@ -2,6 +2,7 @@ import { getDrawingTextRuns, getFirstSlideNumber, getPictureEffects } from './dr
 import { getEmbeddedPictureCandidates } from './picture-resource.js';
 import { createBuiltinDrawingMlTableStyle } from './table-styles.js';
 import { extractChartData } from './chart-data.js';
+import { extractChartOptions } from './chart-options.js';
 import tinycolor from 'tinycolor2'
 import { parse } from './txml'
 import * as dingbatToUnicode from "dingbat-to-unicode";
@@ -10594,6 +10595,16 @@ async function genChart(node, warpObj, groupContext) {
           }
         };
         break;
+      case "c:doughnutChart":
+        chartData = {
+          "type": "createChart",
+          "data": {
+            "chartID": "chart" + chartID,
+            "chartType": "doughnutChart",
+            "chartData": extractChartData(plotArea[key]["c:ser"])
+          }
+        };
+        break;
       case "c:pieChart":
         chartData = {
           "type": "createChart",
@@ -10639,6 +10650,14 @@ async function genChart(node, warpObj, groupContext) {
       case "c:valAx":
         break;
       default:
+    }
+    // Attach metadata only to the chart group just selected. Axis siblings must
+    // not overwrite family-specific settings with defaults.
+    if (chartData !== null && key === "c:" + chartData.data.chartType) {
+      chartData.data.chartOptions = extractChartOptions(
+        plotArea[key], getTextByPathList(content, ["c:chartSpace", "c:chart"]),
+        fill => getSolidFill(fill, undefined, undefined, warpObj)
+      );
     }
   }
 
