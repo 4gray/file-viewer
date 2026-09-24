@@ -1,0 +1,103 @@
+name: Word merged bottom border verification
+on:
+  push:
+    branches: [fix/compatibility-review-20260922]
+    paths: [.github/word-merged-border-review.b64, .github/workflows/word-merged-border-review.yml]
+permissions:
+  contents: write
+concurrency:
+  group: word-merged-border-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  verify:
+    if: github.repository == 'flyfish-dev/file-viewer' && github.ref == 'refs/heads/fix/compatibility-review-20260922'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020
+        with:
+          node-version: 24
+      - name: Apply bounded verified source and regression patch
+        run: |
+          python3 - <<'PY'
+          import pathlib,base64,lzma,hashlib,subprocess
+          d=lzma.LZMADecompressor(memlimit=128*1024*1024)
+          p=d.decompress(base64.b64decode(pathlib.Path('.github/word-merged-border-review.b64').read_text().strip(),validate=True),max_length=1024*1024)
+          assert d.eof and not d.unused_data
+          assert hashlib.sha256(p).hexdigest()=='109466c5c568274bc57f590ed1faf9c4daebf04cbafd2e18f950b5d71bb6a17b'
+          subprocess.run(['git','apply','--check','-'],input=p,check=True)
+          subprocess.run(['git','apply','--index','-'],input=p,check=True)
+          paths=subprocess.check_output(['git','diff','--cached','--name-only'],text=True).splitlines()
+          assert len(paths)==5 and all(x.startswith(('packages/renderers/word/','docs/regressions/')) for x in paths)
+          subprocess.run(['git','diff','--cached','--check'],check=True)
+          PY
+      - name: Actual frozen workspace installation and owning builds
+        run: |
+          set -euo pipefail
+          npm install --prefix "$RUNNER_TEMP/merge-tooling" --ignore-scripts --no-audit --no-fund --save-exact pnpm@11.0.9
+          node "$RUNNER_TEMP/merge-tooling/node_modules/pnpm/bin/pnpm.cjs" --filter . --filter @file-viewer/renderer-word... --filter @file-viewer/pptx install --frozen-lockfile --ignore-scripts
+          git diff --exit-code -- pnpm-lock.yaml pnpm-workspace.yaml package.json patches/
+          npm --prefix packages/core run build
+          npm --prefix packages/renderers/doc run build
+          npm --prefix packages/renderers/word run build
+          node node_modules/playwright/cli.js install --with-deps chromium
+          sudo apt-get install -y fonts-noto-cjk
+      - name: Prepare the immutable original outside the repository
+        run: |
+          python3 - <<'PY'
+          import pathlib,os,hashlib,urllib.request
+          with urllib.request.urlopen('https://github.com/user-attachments/files/31549497/2025.19.-.docx',timeout=60) as r:data=r.read(1024*1024)
+          assert len(data)==299642 and hashlib.sha256(data).hexdigest()=='d5a60516f06b7f116c629fdbc834b81ae8a0d7ac70e64006483d2a4c44ff89ab'
+          (pathlib.Path(os.environ['RUNNER_TEMP'])/'C037.docx').write_bytes(data)
+          PY
+      - name: Reproduce the original missing bottom edge
+        run: |
+          set -euo pipefail
+          file=packages/renderers/word/src/wordDocx.ts
+          git show "HEAD:$file" > "$file"
+          trap 'git checkout-index -f -- packages/renderers/word/src/wordDocx.ts' EXIT
+          if WORD_MERGE_OUTPUT=output/word-merged-borders-before WORD_MERGE_ORIGINAL="$RUNNER_TEMP/C037.docx" node packages/renderers/word/scripts/verify-merged-borders.mjs > "$RUNNER_TEMP/merge-before.log" 2>&1; then cat "$RUNNER_TEMP/merge-before.log"; exit 1; fi
+          python3 - <<'PY'
+          import pathlib,json
+          r=json.loads(pathlib.Path('output/word-merged-borders-before/report.json').read_text())
+          assert r['completed'] and r['failed']>0
+          assert any(c['status']=='fail' and 'C037' in c['name'] and 'merged bottom' in c['name'] for c in r['checks'])
+          PY
+      - name: Verify fixed original, actual Worker, export and existing regressions
+        run: |
+          set -euo pipefail
+          npm --prefix packages/renderers/word run build
+          WORD_MERGE_ORIGINAL="$RUNNER_TEMP/C037.docx" node packages/renderers/word/scripts/verify-merged-borders.mjs
+          WORD_VML_ORIGINAL="$RUNNER_TEMP/C037.docx" node packages/renderers/word/scripts/verify-vml-text-layout.mjs
+          node scripts/verify-docx-engine-compatibility.mjs
+          node scripts/verify-container-compatibility.mjs
+          for name in table-spec github-34 github-87 github-171 github-192 github-236; do node "packages/renderers/doc/scripts/verify-$name.mjs"; done
+      - name: Commit verified code and neutral evidence
+        run: |
+          set -euo pipefail
+          test "$GITHUB_REF" = refs/heads/fix/compatibility-review-20260922
+          python3 - <<'PY'
+          import pathlib,json,shutil,os,hashlib,subprocess
+          dst=pathlib.Path('docs/regressions/evidence/word-merged-borders-20260924');dst.mkdir(parents=True,exist_ok=True)
+          reports=[('word-merged-borders','report.json',21),('word-vml-text','vml.json',57),('docx-engine-compatibility','engine.json',11),('container-compatibility','containers.json',4)]
+          counts={}
+          for directory,name,count in reports:
+            src=pathlib.Path('output')/directory/'report.json';r=json.loads(src.read_text());assert r['passed']==count,(directory,r['passed']);assert not r.get('failed',0)
+            shutil.copyfile(src,dst/name);counts[directory]=count
+          original=json.loads((dst/'report.json').read_text())['originals']
+          cases=[x for x in original if x['id']=='C037'];assert len(cases)==2 and all(x['mergedRegions']==19 and x['characters']==6034 for x in cases)
+          shutil.copyfile('output/word-merged-borders-before/report.json',dst/'baseline.json')
+          shutil.copyfile('output/word-merged-borders/generated.png',dst/'generated.png')
+          changed=subprocess.check_output(['git','diff','--cached','--name-only'],text=True).splitlines()
+          record={'run':os.environ['GITHUB_RUN_ID'],'checkedCommit':os.environ['GITHUB_SHA'],'baseCommit':'cd3f49925f767e9e959c6f284ffe858cca5ef982','original':'C037','mergedRegions':19,'bodyCharacters':6034,'images':5,'checks':counts,'unitTestsAdded':11,'wordUnitTests':74,'existingDocGates':6,'dpr':[1,2],'zoom':[1,0.5,2,0.88,1],'actualWorkerParsed':True,'export':'actual HTML export adapter; physical print driver not tested','builds':['core','doc','word'],'install':'actual pnpm 11.0.9 frozen filtered workspace install; engine patch and dependencies unchanged','fullCorpusAccepted':False,'sourceSha256':{p:hashlib.sha256(pathlib.Path(p).read_bytes()).hexdigest() for p in changed},'evidenceSha256':{p.name:hashlib.sha256(p.read_bytes()).hexdigest() for p in dst.iterdir() if p.is_file()}}
+          (dst/'verification.json').write_text(json.dumps(record,indent=2)+'\n')
+          p=pathlib.Path('docs/regressions/corpus-progress-20260922.md');s=p.read_text();s+='\n## C037 纵向合并区域底边框\n\n[合并区域底边框](word-merged-borders-20260924.md)：19个完整纵向合并区域的末端底边线由隐藏续接格正确转移到可见起始格，保留原始0.5pt黑色实线、正文和网格。21项实际renderer/Worker/导出/缩放检查、74项Word单元测试通过，已有C037 VML 57项及引擎/容器/DOC回归通过。只结清已确认的完整合并链边框问题，跨页分拆和整篇字体/印章保真不从该组结论外推。\n';p.write_text(s)
+          subprocess.run(['git','add','--',str(dst),str(p)],check=True)
+          PY
+          git rm -- .github/word-merged-border-review.b64 .github/workflows/word-merged-border-review.yml
+          git diff --cached --check
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git commit -m 'fix(word): restore terminal bottom borders on vertical merged cells'
+          git push origin HEAD:refs/heads/fix/compatibility-review-20260922
