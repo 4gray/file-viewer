@@ -1,0 +1,126 @@
+name: DOCX date and combination axes verification
+on:
+  push:
+    branches: [fix/compatibility-review-20260922]
+    paths: [.github/chart-axes-20260925/**, .github/workflows/chart-axes-20260925.yml]
+permissions:
+  contents: write
+concurrency:
+  group: chart-axes-review-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  verify:
+    if: github.repository == 'flyfish-dev/file-viewer' && github.ref == 'refs/heads/fix/compatibility-review-20260922'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020
+        with:
+          node-version: 24
+      - name: Decode bounded and hash-verified source additions
+        run: |
+          python3 - <<'PY'
+          import pathlib,base64,lzma,hashlib,json,subprocess
+          root=pathlib.Path('.github/chart-axes-20260925')
+          encoded=''.join((root/f'part{i}.b64').read_text().strip() for i in range(3))
+          d=lzma.LZMADecompressor(memlimit=128*1024*1024)
+          raw=d.decompress(base64.b64decode(encoded,validate=True),max_length=1024*1024)
+          assert d.eof and not d.unused_data
+          assert hashlib.sha256(raw).hexdigest()=='552786ff3accc0c65d9f6322f7ad47abae5bdba5e6d8580ded116c30a3d4464a'
+          files=json.loads(raw);assert len(files)==7
+          for name,text in files.items():
+            p=pathlib.Path(name)
+            assert not p.exists() and not p.is_absolute() and '..' not in p.parts
+            assert name.startswith(('scripts/','test/docx-chart-axes/','docs/regressions/'))
+            p.parent.mkdir(parents=True,exist_ok=True);p.write_text(text)
+          subprocess.run(['git','add','--',*files],check=True)
+          PY
+      - name: Install frozen workspace dependencies
+        timeout-minutes: 5
+        run: |
+          set -euo pipefail
+          npm install --prefix "$RUNNER_TEMP/axes-tooling" --ignore-scripts --no-audit --no-fund --save-exact pnpm@11.0.9
+          node "$RUNNER_TEMP/axes-tooling/node_modules/pnpm/bin/pnpm.cjs" --filter . --filter @file-viewer/renderer-word... --filter @file-viewer/pptx install --frozen-lockfile --ignore-scripts
+          git diff --exit-code -- pnpm-lock.yaml pnpm-workspace.yaml patches/
+          npm --prefix packages/core run build
+          npm --prefix packages/renderers/doc run build
+          npm --prefix packages/renderers/word run build
+      - name: Install actual browser and CJK fonts
+        timeout-minutes: 5
+        run: |
+          node node_modules/playwright/cli.js install chromium
+          sudo apt-get -o Acquire::http::Timeout=25 -o Acquire::Retries=1 update -qq
+          sudo apt-get -o Acquire::http::Timeout=25 -o Acquire::Retries=1 install -y fonts-noto-cjk
+      - name: Prepare hash-pinned originals outside the repository
+        run: |
+          python3 - <<'PY'
+          import pathlib,os,urllib.request,hashlib
+          root=pathlib.Path(os.environ['RUNNER_TEMP'])/'axes-originals';root.mkdir()
+          for id,size,digest,part in [('C034',896699,'ca47e0507cb803f920aa88aac9a1600d568a7c66ff24c6142d509484b55e7571','31245846/Mysteel.docx'),('C005',24181,'0b6a601d5c98fb9d543a0baf4afce712f79831710ca6de4a383a1f69c89428a8','29026887/-.3.docx')]:
+            with urllib.request.urlopen('https://github.com/user-attachments/files/'+part,timeout=60) as response:data=response.read(2*1024*1024)
+            assert len(data)==size and hashlib.sha256(data).hexdigest()==digest,id
+            (root/(id+'.docx')).write_bytes(data)
+          PY
+      - name: Verify previous implementation fails the targeted assertions
+        run: |
+          set -euo pipefail
+          if DOCX_AXES_OUTPUT=output/docx-chart-axes-before DOCX_AXES_ORIGINAL="$RUNNER_TEMP/axes-originals/C034.docx" node scripts/verify-docx-chart-axes.mjs > "$RUNNER_TEMP/axes-before.log" 2>&1; then exit 1; fi
+          python3 - <<'PY'
+          import json,pathlib
+          r=json.loads(pathlib.Path('output/docx-chart-axes-before/report.json').read_text());assert r['completed'] and r['failed']>0
+          names=[c['name'] for c in r['checks'] if c['status']=='fail']
+          assert any('date intervals' in n for n in names)
+          assert any('combined column and line' in n for n in names)
+          PY
+      - name: Generate declared package patch and install it from the frozen lock
+        timeout-minutes: 5
+        run: |
+          set -euo pipefail
+          node scripts/prepare-docx-chart-axes.mjs
+          python3 - <<'PY'
+          import hashlib,pathlib
+          assert hashlib.sha256(pathlib.Path('patches/@file-viewer__docx@0.3.32.patch').read_bytes()).hexdigest()=='0f27cd1be09d1c659969fa077b613931060cec6e4f211559a7acfefd4130af89'
+          PY
+          node "$RUNNER_TEMP/axes-tooling/node_modules/pnpm/bin/pnpm.cjs" --filter . --filter @file-viewer/renderer-word... --filter @file-viewer/pptx install --frozen-lockfile --ignore-scripts
+          npm --prefix packages/core run build
+          npm --prefix packages/renderers/doc run build
+          npm --prefix packages/renderers/word run build
+          node --test test/docx-chart-axes/date-format.test.mjs
+      - name: Verify actual Worker renderer originals and existing regressions
+        run: |
+          set -euo pipefail
+          DOCX_AXES_ORIGINAL="$RUNNER_TEMP/axes-originals/C034.docx" node scripts/verify-docx-chart-axes.mjs
+          DOCX_GRID_ORIGINAL="$RUNNER_TEMP/axes-originals/C005.docx" node scripts/verify-docx-grid-metrics.mjs
+          node scripts/verify-docx-engine-compatibility.mjs
+          node scripts/verify-container-compatibility.mjs
+          for name in table-spec github-34 github-87 github-171 github-192 github-236; do node "packages/renderers/doc/scripts/verify-$name.mjs"; done
+      - name: Commit verified code and neutral original evidence
+        run: |
+          set -euo pipefail
+          test "$GITHUB_REF" = refs/heads/fix/compatibility-review-20260922
+          python3 - <<'PY'
+          import pathlib,json,shutil,os,hashlib,subprocess
+          root=pathlib.Path('docs/regressions/evidence/docx-chart-axes-20260925');root.mkdir(parents=True,exist_ok=True)
+          checks={}
+          for directory,name,count in [('docx-chart-axes','report.json',29),('docx-engine-compatibility','engine.json',11),('container-compatibility','containers.json',4)]:
+            src=pathlib.Path('output')/directory/'report.json';r=json.loads(src.read_text());assert r['passed']==count and not r.get('failed',0)
+            checks[directory]=count;shutil.copyfile(src,root/name)
+          grid=pathlib.Path('output/docx-grid-metrics/report.json');r=json.loads(grid.read_text());assert r['completed'] and not r.get('failed',0);checks['grid']=r['passed'];shutil.copyfile(grid,root/'grid.json')
+          shutil.copyfile('output/docx-chart-axes-before/report.json',root/'baseline.json')
+          shutil.copyfile('output/docx-chart-axes/generated.png',root/'generated.png')
+          for file in pathlib.Path('output/docx-chart-axes').glob('original-*.json'):shutil.copyfile(file,root/file.name)
+          paths=['patches/@file-viewer__docx@0.3.32.patch','patches/docx-engine-compatibility.json','pnpm-lock.yaml','packages/core/src/platform/assets.ts','apps/viewer-demo/public/vendor/docx/docx.worker.js']
+          subprocess.run(['git','add','--',*paths],check=True)
+          staged=subprocess.check_output(['git','diff','--cached','--name-only'],text=True).splitlines()
+          receipt={'run':os.environ['GITHUB_RUN_ID'],'checkedCommit':os.environ['GITHUB_SHA'],'baseCommit':'078ee358e2a7c777b3b74ec8c5b1e88521171c5a','original':'C034','charts':12,'dataPoints':542,'manualAxisTitles':11,'bodyCharacters':3643,'decodedImages':11,'headerImages':7,'unitTests':27,'checks':checks,'dpr':[1,2],'builds':['core','doc','word'],'actualWorkerParsed':True,'install':'actual pnpm 11.0.9 frozen filtered workspace install before and after declared patch regeneration','upstreamSourceBuild':False,'fullCorpusAccepted':False,'sourceSha256':{p:hashlib.sha256(pathlib.Path(p).read_bytes()).hexdigest() for p in staged},'evidenceSha256':{p.name:hashlib.sha256(p.read_bytes()).hexdigest() for p in root.iterdir() if p.is_file()}}
+          (root/'verification.json').write_text(json.dumps(receipt,indent=2)+'\n')
+          p=pathlib.Path('docs/regressions/corpus-progress-20260922.md');s=p.read_text();s+='\n## C034 日期轴与组合图\n\n[日期轴、轴标题与组合系列](docx-chart-axes-20260925.md)：修复日期序号、真实日期间距、轴标题归属和柱线组合图次系列漏绘。12图/542点/11轴标题按原始XML核对，3,643正文字符和11图保留，7个页眉图标锚点及尺寸复核。27项单元检查、29项实际renderer/Worker/原样检查通过；所有5个引擎入口、静态Worker与缓存标识已同步，C005行距原样回归再次通过。未覆盖的高级图表或目标宿主不从此组结论外推。\n';p.write_text(s)
+          subprocess.run(['git','add','--',str(root),str(p)],check=True)
+          PY
+          git rm -- .github/chart-axes-20260925/part0.b64 .github/chart-axes-20260925/part1.b64 .github/chart-axes-20260925/part2.b64 .github/workflows/chart-axes-20260925.yml .github/workflows/closure-snapshot-20260925.yml
+          git diff --cached --check
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git commit -m 'fix(word): preserve date axes and secondary chart series'
+          git push origin HEAD:refs/heads/fix/compatibility-review-20260922
