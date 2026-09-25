@@ -1,0 +1,25 @@
+name: Closure source snapshot
+on:
+  push:
+    branches: [fix/compatibility-review-20260922]
+    paths: [.github/workflows/closure-snapshot-20260925.yml]
+permissions:
+  contents: read
+jobs:
+  snapshot:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+      - name: Archive exact tracked sources
+        run: |
+          mkdir -p "$RUNNER_TEMP/closure-source"
+          git archive HEAD | gzip > "$RUNNER_TEMP/closure-source/source.tar.gz"
+          git rev-parse HEAD > "$RUNNER_TEMP/closure-source/head.txt"
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: closure-source-20260925
+          path: ${{ runner.temp }}/closure-source/
+          retention-days: 1
